@@ -515,7 +515,7 @@
     document.getElementById('pvfmts').innerHTML=PVF.map(f=>'<button class="pvfmt'+(pvFmt===f[0]?' on':'')+'" onclick="setPvFmt(\''+f[0]+'\')">'+f[1]+'</button>').join('');
     const b=document.getElementById('pvbody');
     b.innerHTML='<div class="state"><div class="spin2"></div>Cargando preview…</div>';
-    fetch('/api/insights?preview='+pvAd+'&format='+pvFmt).then(r=>r.json()).then(j=>{
+    fetch('/api/insights?preview='+pvAd+'&format='+pvFmt+'&password='+encodeURIComponent(PWD())).then(r=>r.json()).then(j=>{
       if(j.error) throw new Error(j.error);
       if(!j.body){ b.innerHTML='<div class="state">Este formato no está disponible para este anuncio.<br>Prueba con Móvil o Desktop.</div>'; return; }
       b.innerHTML=j.body;
