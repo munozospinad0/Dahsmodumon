@@ -17,9 +17,9 @@ module.exports = async function handler(req, res) {
   if (action === 'update') { params.set('action', 'update'); params.set('id', id); params.set('status', status); }
 
   try {
-    const r = await fetch(GAS_URL + '?' + params.toString(), { redirect: 'follow' });
+    const r = await fetch(GAS_URL + '?' + params.toString(), { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (dash-modumon)' } });
     const text = await r.text();
-    let j; try { j = JSON.parse(text); } catch { return res.status(502).json({ error: 'Respuesta inválida del Apps Script' }); }
+    let j; try { j = JSON.parse(text); } catch { return res.status(502).json({ error: 'Respuesta inválida del Apps Script', status: r.status, ct: r.headers.get('content-type'), snippet: text.slice(0, 160) }); }
     if (action === 'leads') res.setHeader('Cache-Control', 's-maxage=20, stale-while-revalidate');
     return res.status(200).json(j);
   } catch (e) {
