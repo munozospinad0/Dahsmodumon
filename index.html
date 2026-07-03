@@ -317,12 +317,16 @@
     }).catch(()=>{});
 
     api('level=campaign&'+dp).then(d=>{
-      const cs=d.map(c=>({name:c.campaign_name,spend:Number(c.spend)||0,imp:Number(c.impressions)||0,ctr:Number(c.ctr)||0,reach:Number(c.reach)||0,leads:leadsOf(c)})).sort((a,b)=>b.spend-a.spend);
+      const cs=d.map(c=>({name:c.campaign_name,spend:Number(c.spend)||0,imp:Number(c.impressions)||0,ctr:Number(c.ctr)||0,reach:Number(c.reach)||0,cpm:Number(c.cpm)||0,freq:Number(c.frequency)||0,leads:leadsOf(c)})).sort((a,b)=>b.spend-a.spend);
       document.getElementById('camps').innerHTML=cs.length?cs.map(c=>{const k=kindOf(c.name);
-        return '<div class="camp '+k[0]+'"><div class="cn">'+esc(k[1])+'</div><div class="cf">'+esc(c.name)+'</div>'
-        +'<div class="big"><div><b>'+money(c.spend)+'</b><span>Gasto</span></div><div><b>'+intf(c.leads)+'</b><span>Leads</span></div></div>'
-        +'<div class="st"><div><b>'+(c.leads?money(c.spend/c.leads):'—')+'</b><span>CPL</span></div><div><b>'+c.ctr.toFixed(2)+'%</b><span>CTR</span></div>'
-        +'<div><b>'+intf(c.imp)+'</b><span>Impr.</span></div><div><b>'+intf(c.reach)+'</b><span>Alcance</span></div></div></div>';}).join('')
+        const isAw=k[0]==='aw';
+        const big=isAw
+          ?'<div class="big"><div><b>'+money(c.spend)+'</b><span>Gasto</span></div><div><b>'+intf(c.reach)+'</b><span>Alcance</span></div></div>'
+          :'<div class="big"><div><b>'+money(c.spend)+'</b><span>Gasto</span></div><div><b>'+intf(c.leads)+'</b><span>Leads</span></div></div>';
+        const st=isAw
+          ?'<div class="st"><div><b>'+money(c.cpm)+'</b><span>CPM</span></div><div><b>'+c.freq.toFixed(2)+'</b><span>Frecuencia</span></div><div><b>'+intf(c.imp)+'</b><span>Impr.</span></div><div><b>'+c.ctr.toFixed(2)+'%</b><span>CTR</span></div></div>'
+          :'<div class="st"><div><b>'+(c.leads?money(c.spend/c.leads):'—')+'</b><span>CPL</span></div><div><b>'+c.ctr.toFixed(2)+'%</b><span>CTR</span></div><div><b>'+intf(c.imp)+'</b><span>Impr.</span></div><div><b>'+intf(c.reach)+'</b><span>Alcance</span></div></div>';
+        return '<div class="camp '+k[0]+'"><div class="cn">'+esc(k[1])+'</div><div class="cf">'+esc(c.name)+'</div>'+big+st+'</div>';}).join('')
         :'<div class="state">Sin datos en este rango.</div>';
       // Dona: gasto por campaña
       mkChart('donut',{type:'doughnut',data:{labels:cs.map(c=>kindOf(c.name)[1]),datasets:[{data:cs.map(c=>c.spend),backgroundColor:['#FE881C','#5B3FE0','#A688F8','#F6EE3E'],borderWidth:3,borderColor:'#fff',hoverOffset:8}]},
