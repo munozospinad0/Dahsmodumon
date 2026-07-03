@@ -19,7 +19,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (!TOKEN) return res.status(500).json({ error: 'Falta META_TOKEN en las variables de entorno de Vercel' });
 
-  const { level = 'campaign', preset = 'maximum', from, to, daily, preview, format } = req.query;
+  const { level = 'campaign', preset = 'maximum', from, to, daily, preview, format, breakdowns } = req.query;
 
   // Preview oficial de un anuncio: /api/insights?preview=AD_ID&format=MOBILE_FEED_STANDARD
   if (preview) {
@@ -41,8 +41,9 @@ module.exports = async function handler(req, res) {
     : `&date_preset=${encodeURIComponent(preset)}`;
   if (daily) dateParam += '&time_increment=1';
 
+  const bd = (breakdowns && /^[a-z_,]+$/.test(breakdowns)) ? `&breakdowns=${breakdowns}` : '';
   const url = `https://graph.facebook.com/${API_VERSION}/${ACCOUNT}/insights?level=${level}` +
-    `&fields=${FIELDS[level]}${dateParam}&limit=500&access_token=${TOKEN}`;
+    `&fields=${FIELDS[level]}${dateParam}${bd}&limit=500&access_token=${TOKEN}`;
 
   try {
     const r = await fetch(url);
