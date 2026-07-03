@@ -42,7 +42,6 @@ function doGet(e){
   if(p.key!==KEY) return out_(p.callback,{error:'unauthorized'});
   try{
     if(p.action==='update')  return out_(p.callback, updateLead_(p.id,p.status));
-    if(p.action==='metrics') return out_(p.callback, getMetrics_());
     return out_(p.callback, getLeads_());
   }catch(err){ return out_(p.callback,{error:String(err)}); }
 }

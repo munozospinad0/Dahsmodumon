@@ -1,0 +1,47 @@
+// API Serverless — Proxy a Meta Marketing API (modu.mon)
+// /api/insights?level=campaign&preset=maximum  ·  /api/insights?level=ad&preset=last_7d
+// /api/insights?level=account&preset=last_30d&daily=1  (serie diaria)
+
+const API_VERSION = process.env.META_API_VERSION || 'v21.0';
+const TOKEN = process.env.META_TOKEN;
+const ACCOUNT = process.env.META_ACCOUNT_ID || 'act_1032839425787482';
+
+const FIELDS = {
+  account: 'spend,impressions,reach,frequency,cpm,cpc,ctr,clicks,actions,cost_per_action_type',
+  campaign: 'campaign_name,campaign_id,spend,impressions,reach,frequency,cpm,cpc,ctr,clicks,actions,cost_per_action_type',
+  adset: 'adset_name,adset_id,campaign_name,spend,impressions,reach,cpm,cpc,clicks,actions',
+  ad: 'ad_name,ad_id,adset_name,campaign_name,spend,impressions,reach,cpm,cpc,ctr,clicks,actions',
+};
+
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!TOKEN) return res.status(500).json({ error: 'Falta META_TOKEN en las variables de entorno de Vercel' });
+
+  const { level = 'campaign', preset = 'maximum', from, to, daily } = req.query;
+  if (!FIELDS[level]) return res.status(400).json({ error: 'Nivel inválido' });
+
+  let dateParam = (from && to)
+    ? `&time_range=${encodeURIComponent(JSON.stringify({ since: from, until: to }))}`
+    : `&date_preset=${encodeURIComponent(preset)}`;
+  if (daily) dateParam += '&time_increment=1';
+
+  const url = `https://graph.facebook.com/${API_VERSION}/${ACCOUNT}/insights?level=${level}` +
+    `&fields=${FIELDS[level]}${dateParam}&limit=500&access_token=${TOKEN}`;
+
+  try {
+    const r = await fetch(url);
+    const data = await r.json();
+    if (data.error) {
+      return res.status(400).json({
+        error: data.error.message, code: data.error.code,
+        hint: data.error.code === 190 ? 'El token de Meta expiró: renueva META_TOKEN en Vercel.' : null,
+      });
+    }
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
+    return res.status(200).json({ success: true, level, count: (data.data || []).length, data: data.data || [] });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error consultando Meta API', message: err.message });
+  }
+};
