@@ -201,11 +201,12 @@
 
   <section>
     <h2>Audiencia y entrega</h2>
-    <p class="sub">Quién ve los anuncios y dónde se muestran — directo de Meta</p>
+    <p class="sub">Quién ve los anuncios y dónde se muestran — directo de Meta. Las campañas de <b>leads</b> apuntan a las zonas del media plan (Ciudad de Panamá, La Chorrera, Arraiján y Colón); la de <b>Awareness</b> va general a todo Panamá — por eso al ver "Todas" aparecen otras provincias.</p>
+    <div class="filtros" id="audFilter" style="margin:0 0 16px 22px"></div>
     <div class="charts">
       <div class="chartcard"><h3>Edad y género</h3><div class="chartbox"><canvas id="agegender"></canvas></div></div>
       <div class="chartcard"><h3>Dónde se muestran</h3><div class="chartbox"><canvas id="placements"></canvas></div></div>
-      <div class="chartcard"><h3>Regiones</h3><div class="chartbox"><canvas id="regions"></canvas></div></div>
+      <div class="chartcard"><h3>Regiones</h3><div class="chartbox"><canvas id="regions"></canvas></div><p id="regnote" class="sub" style="margin:10px 0 0;font-size:.7rem"></p></div>
     </div>
   </section>
 
@@ -293,28 +294,7 @@
       document.getElementById('kpis').innerHTML=kpis.map((k,i)=>'<div class="kpi" style="animation-delay:'+(i*40)+'ms"><div class="kt"><div class="ki">'+IC[k[0]]+'</div><span>'+k[1]+'</span></div><b>'+k[2]+'</b></div>').join('');
     }).catch(e=>{ document.getElementById('kpis').innerHTML='<div class="kpi"><b style="font-size:.9rem">'+esc(e.message)+'</b></div>'; });
 
-    // ---- Audiencia y entrega (breakdowns) ----
-    api('level=account&breakdowns=age,gender&'+dp).then(d=>{
-      const ages=[...new Set(d.map(x=>x.age))].sort();
-      const g=(gen)=>ages.map(ag=>{const r=d.find(x=>x.age===ag&&x.gender===gen);return r?Number(r.impressions)||0:0;});
-      mkChart('agegender',{type:'bar',data:{labels:ages,datasets:[
-        {label:'Hombres',data:g('male'),backgroundColor:'#5B3FE0',borderRadius:6},
-        {label:'Mujeres',data:g('female'),backgroundColor:'#FE881C',borderRadius:6}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11,weight:'bold'}}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+intf(c.parsed.y)+' impresiones'}}},
-        scales:{y:{beginAtZero:true,ticks:{font:{size:10}},grid:{color:'rgba(62,42,155,.06)'}},x:{ticks:{font:{size:10}},grid:{display:false}}}}});
-    }).catch(()=>{});
-    api('level=account&breakdowns=publisher_platform,platform_position&'+dp).then(d=>{
-      const NAME={facebook:'Facebook',instagram:'Instagram',audience_network:'Audience Network',messenger:'Messenger',feed:'Feed',facebook_stories:'Stories',instagram_stories:'Stories IG',instagram_reels:'Reels',facebook_reels:'Reels FB',marketplace:'Marketplace',video_feeds:'Video',search:'Buscador',an_classic:'AN',instream_video:'In-stream',right_hand_column:'Col. derecha',instagram_explore:'Explore'};
-      const rows=d.map(x=>({label:(NAME[x.publisher_platform]||x.publisher_platform)+' · '+(NAME[x.platform_position]||x.platform_position),v:Number(x.impressions)||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).slice(0,8);
-      mkChart('placements',{type:'doughnut',data:{labels:rows.map(r=>r.label),datasets:[{data:rows.map(r=>r.v),backgroundColor:CPAL.concat(['#ffb469','#cebcff']),borderWidth:3,borderColor:'#fff',hoverOffset:8}]},
-        options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{boxWidth:11,font:{size:9.5,weight:'bold'},padding:8}},tooltip:{callbacks:{label:c=>' '+intf(c.parsed)+' impresiones'}}}}});
-    }).catch(()=>{});
-    api('level=account&breakdowns=region&'+dp).then(d=>{
-      const rows=d.map(x=>({label:(x.region||'—').replace(' Province','').replace('Provincia de ',''),v:Number(x.impressions)||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).slice(0,7);
-      mkChart('regions',{type:'bar',data:{labels:rows.map(r=>r.label),datasets:[{label:'Impresiones',data:rows.map(r=>r.v),backgroundColor:rows.map((_,i)=>CPAL[i%CPAL.length]),borderRadius:8}]},
-        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+intf(c.parsed.x)+' impresiones'}}},
-        scales:{x:{beginAtZero:true,ticks:{font:{size:10}},grid:{color:'rgba(62,42,155,.06)'}},y:{ticks:{font:{size:10.5}},grid:{display:false}}}}});
-    }).catch(()=>{});
+    loadAudience(dp);
 
     api('level=campaign&'+dp).then(d=>{
       const cs=d.map(c=>({name:c.campaign_name,spend:Number(c.spend)||0,imp:Number(c.impressions)||0,ctr:Number(c.ctr)||0,reach:Number(c.reach)||0,cpm:Number(c.cpm)||0,freq:Number(c.frequency)||0,leads:leadsOf(c)})).sort((a,b)=>b.spend-a.spend);
@@ -361,6 +341,54 @@
   }
   function renderPresets(){ document.getElementById('presets').innerHTML=PRESETS.map(p=>'<button class="preset'+(preset===p[0]?' on':'')+'" onclick="setPreset(\''+p[0]+'\')">'+p[1]+'</button>').join(''); }
   function setPreset(p){ preset=p; renderPresets(); loadMetrics(); }
+
+  /* ============ AUDIENCIA por campaña ============ */
+  const AUDF=[['all','Todas'],['b2c','Hogar (B2C)'],['b2b','Proyectos (B2B)'],['aw','Awareness']];
+  let audSel='all', audRaw={age:[],plc:[],reg:[]};
+  function loadAudience(dp){
+    Promise.all([
+      api('level=campaign&breakdowns=age,gender&'+dp).catch(()=>[]),
+      api('level=campaign&breakdowns=publisher_platform,platform_position&'+dp).catch(()=>[]),
+      api('level=campaign&breakdowns=region&'+dp).catch(()=>[])
+    ]).then(([age,plc,reg])=>{ audRaw={age,plc,reg}; renderAudience(); });
+  }
+  function setAud(a){ audSel=a; renderAudience(); }
+  function audFilter(rows){ return audSel==='all'?rows:rows.filter(r=>kindOf(r.campaign_name)[0]===audSel); }
+  function renderAudience(){
+    document.getElementById('audFilter').innerHTML=AUDF.map(f=>'<button class="chip'+(audSel===f[0]?' on':'')+'" onclick="setAud(\''+f[0]+'\')">'+f[1]+'</button>').join('');
+    // Edad y género
+    (()=>{ const d=audFilter(audRaw.age);
+      const ages=[...new Set(d.map(x=>x.age))].sort();
+      const agg=(gen)=>ages.map(ag=>d.filter(x=>x.age===ag&&x.gender===gen).reduce((s,x)=>s+(Number(x.impressions)||0),0));
+      mkChart('agegender',{type:'bar',data:{labels:ages,datasets:[
+        {label:'Hombres',data:agg('male'),backgroundColor:'#5B3FE0',borderRadius:6},
+        {label:'Mujeres',data:agg('female'),backgroundColor:'#FE881C',borderRadius:6}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11,weight:'bold'}}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+intf(c.parsed.y)+' impresiones'}}},
+        scales:{y:{beginAtZero:true,ticks:{font:{size:10}},grid:{color:'rgba(62,42,155,.06)'}},x:{ticks:{font:{size:10}},grid:{display:false}}}}});
+    })();
+    // Placements
+    (()=>{ const d=audFilter(audRaw.plc);
+      const NAME={facebook:'Facebook',instagram:'Instagram',audience_network:'Audience Network',messenger:'Messenger',feed:'Feed',facebook_stories:'Stories',instagram_stories:'Stories IG',instagram_reels:'Reels',facebook_reels:'Reels FB',marketplace:'Marketplace',video_feeds:'Video',search:'Buscador',an_classic:'AN',instream_video:'In-stream',right_hand_column:'Col. derecha',instagram_explore:'Explore'};
+      const m={}; d.forEach(x=>{const l=(NAME[x.publisher_platform]||x.publisher_platform)+' · '+(NAME[x.platform_position]||x.platform_position);m[l]=(m[l]||0)+(Number(x.impressions)||0);});
+      const rows=Object.entries(m).map(([label,v])=>({label,v})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).slice(0,8);
+      mkChart('placements',{type:'doughnut',data:{labels:rows.map(r=>r.label),datasets:[{data:rows.map(r=>r.v),backgroundColor:CPAL.concat(['#ffb469','#cebcff']),borderWidth:3,borderColor:'#fff',hoverOffset:8}]},
+        options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{boxWidth:11,font:{size:9.5,weight:'bold'},padding:8}},tooltip:{callbacks:{label:c=>' '+intf(c.parsed)+' impresiones'}}}}});
+    })();
+    // Regiones
+    (()=>{ const d=audFilter(audRaw.reg);
+      const m={}; d.forEach(x=>{const l=(x.region||'—').replace(' Province','').replace('Provincia de ','');m[l]=(m[l]||0)+(Number(x.impressions)||0);});
+      const rows=Object.entries(m).map(([label,v])=>({label,v})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).slice(0,7);
+      mkChart('regions',{type:'bar',data:{labels:rows.map(r=>r.label),datasets:[{label:'Impresiones',data:rows.map(r=>r.v),backgroundColor:rows.map((_,i)=>CPAL[i%CPAL.length]),borderRadius:8}]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+intf(c.parsed.x)+' impresiones'}}},
+        scales:{x:{beginAtZero:true,ticks:{font:{size:10}},grid:{color:'rgba(62,42,155,.06)'}},y:{ticks:{font:{size:10.5}},grid:{display:false}}}}});
+      const note=document.getElementById('regnote');
+      if(note) note.innerHTML=audSel==='aw'
+        ?'Awareness va <b>general a todo Panamá</b> (reconocimiento de marca a $1/día).'
+        :(audSel==='all'
+          ?'Viendo <b>todas</b> las campañas juntas: las provincias fuera del plan vienen de Awareness (que va a todo Panamá).'
+          :'Esta campaña apunta a las <b>zonas del media plan</b>: Ciudad de Panamá, La Chorrera, Arraiján y Colón (+20&nbsp;km).');
+    })();
+  }
 
   /* ============ EMBUDO CRM ============ */
   function renderFunnel(){
