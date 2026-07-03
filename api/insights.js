@@ -13,10 +13,15 @@ const FIELDS = {
   ad: 'ad_name,ad_id,adset_name,campaign_name,spend,impressions,reach,cpm,cpc,ctr,clicks,actions',
 };
 
+const PASSWORD = process.env.DASHBOARD_PASSWORD;
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Dashboard-Password');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const provided = req.headers['x-dashboard-password'] || req.query.password;
+  if (PASSWORD && provided !== PASSWORD) return res.status(401).json({ error: 'unauthorized' });
   if (!TOKEN) return res.status(500).json({ error: 'Falta META_TOKEN en las variables de entorno de Vercel' });
 
   const { level = 'campaign', preset = 'maximum', from, to, daily, preview, format, breakdowns } = req.query;

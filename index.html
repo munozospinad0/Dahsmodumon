@@ -169,6 +169,24 @@
   .pvbody{padding:14px;overflow:auto;display:flex;justify-content:center;min-height:380px}
   .pvbody iframe{border:0;border-radius:14px;max-width:100%}
   @keyframes sp{to{transform:rotate(360deg)}}@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  /* ---- login ---- */
+  #login{position:fixed;inset:0;z-index:100;background:linear-gradient(128deg,#2c1d77 0%,var(--vio) 34%,var(--vio2) 68%,var(--vio3) 100%);display:none;align-items:center;justify-content:center;padding:20px}
+  #login.open{display:flex}
+  #login::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.13) 1px,transparent 1.4px);background-size:28px 28px;opacity:.35}
+  .lgcard{position:relative;background:#fff;border-radius:26px;box-shadow:0 40px 100px rgba(0,0,0,.4);padding:40px 38px;width:min(400px,94vw);text-align:center;animation:rise .4s cubic-bezier(.2,.8,.2,1) both}
+  .lgcard .logo{margin:0 auto 16px;width:64px;height:64px;font-size:1.8rem;border-radius:18px;background:linear-gradient(135deg,var(--vio),var(--vio2));color:#fff}
+  .lgcard h1{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
+  .lgcard p{font-size:.8rem;color:var(--ink);margin:6px 0 22px}
+  .lgin{display:flex;align-items:center;gap:10px;background:var(--pink);border-radius:14px;padding:13px 16px;margin-bottom:12px}
+  .lgin svg{width:17px;height:17px;stroke:var(--vio);flex:none}
+  .lgin input{border:0;outline:0;background:transparent;flex:1;font-size:1rem;font-family:inherit;color:var(--dark)}
+  .lgbtn{width:100%;border:0;background:linear-gradient(120deg,var(--vio),var(--vio2));color:#fff;padding:14px;border-radius:14px;font-weight:800;font-size:.95rem;cursor:pointer;font-family:inherit;box-shadow:0 10px 24px rgba(62,42,155,.35);transition:.2s}
+  .lgbtn:hover{transform:translateY(-1px)}
+  .lgerr{font-size:.76rem;color:var(--disqualified);font-weight:700;margin-top:12px;min-height:1em}
+  .lgfoot{font-size:.62rem;color:#9a94bd;margin-top:18px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+  .iconbtn{border:0;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;width:38px;height:38px;border-radius:12px;cursor:pointer;display:grid;place-items:center;transition:.2s}
+  .iconbtn:hover{background:rgba(255,255,255,.22)}
+  .iconbtn svg{width:16px;height:16px;stroke:#fff}
 </style>
 </head>
 <body>
@@ -176,7 +194,9 @@
   <div class="hglow"></div>
   <div class="top">
     <div class="brand"><div class="logo">m</div><div><h1>modu.mon · Dashboard</h1><small>Leads + Paid Media · Panamá</small></div></div>
-    <div class="hright"><div class="updated"><span class="dot"></span><span id="upd">conectando…</span></div></div>
+    <div class="hright"><div class="updated"><span class="dot"></span><span id="upd">conectando…</span></div>
+      <button class="iconbtn" onclick="logout()" title="Cerrar sesión"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></button>
+    </div>
   </div>
   <div class="presets" id="presets"></div>
   <div class="kpis" id="kpis"></div>
@@ -242,6 +262,20 @@
 </div>
 <footer>modu.mon · gestionado por ECUS Agency</footer>
 
+<div id="login">
+  <div class="lgcard">
+    <div class="logo">m</div>
+    <h1>modu.mon · Dashboard</h1>
+    <p>Leads + Paid Media · acceso privado</p>
+    <form onsubmit="doLogin(event)">
+      <label class="lgin"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><input id="lgpass" type="password" placeholder="Clave de acceso" autocomplete="current-password"></label>
+      <button class="lgbtn" type="submit">Entrar</button>
+    </form>
+    <div class="lgerr" id="lgerr"></div>
+    <div class="lgfoot">Gestionado por ECUS Agency</div>
+  </div>
+</div>
+
 <div id="pv" onclick="if(event.target===this)closePv()">
   <div class="pvcard">
     <div class="pvtop"><div class="t" id="pvt">Anuncio</div><button class="pvx" onclick="closePv()">×</button></div>
@@ -281,7 +315,21 @@
   const CPAL=['#5B3FE0','#FE881C','#A688F8','#F6EE3E','#2563eb','#16a34a'];
   Chart.defaults.font.family="'Sora',sans-serif";
 
-  async function api(q){ const r=await fetch('/api/insights?'+q); const j=await r.json(); if(j.error) throw new Error(j.error); return j.data||[]; }
+  /* ============ AUTH ============ */
+  const PWD=()=>localStorage.getItem('mm_pass')||'';
+  function showLogin(err){ document.getElementById('login').classList.add('open'); document.getElementById('lgerr').textContent=err?'Clave incorrecta, intenta de nuevo.':''; setTimeout(()=>document.getElementById('lgpass').focus(),50); }
+  function hideLogin(){ document.getElementById('login').classList.remove('open'); }
+  function logout(){ localStorage.removeItem('mm_pass'); location.reload(); }
+  async function doLogin(ev){
+    ev.preventDefault();
+    const p=document.getElementById('lgpass').value.trim(); if(!p) return;
+    const r=await fetch('/api/insights?level=account&preset=today&password='+encodeURIComponent(p));
+    if(r.status===401){ showLogin(true); return; }
+    localStorage.setItem('mm_pass',p); hideLogin(); loadAll(false);
+  }
+
+  async function api(q){ const r=await fetch('/api/insights?'+q+'&password='+encodeURIComponent(PWD())); if(r.status===401){ showLogin(false); throw new Error('Acceso requerido'); } const j=await r.json(); if(j.error) throw new Error(j.error); return j.data||[]; }
+  async function gas(params){ const r=await fetch('/api/leads?'+new URLSearchParams(Object.assign({password:PWD()},params)).toString()); if(r.status===401){ showLogin(false); throw new Error('Acceso requerido'); } const j=await r.json(); if(j.error) throw new Error(j.error); return j; }
   function mkChart(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
 
   function loadMetrics(){
@@ -399,25 +447,13 @@
     document.getElementById('funnel').innerHTML=steps.map(s=>'<div class="fstep '+s[0]+'"><b>'+s[2]+'</b><span>'+s[1]+'</span><div class="fp">'+Math.round(s[2]/total*100)+'% del total</div><div class="fbar"><i style="width:'+Math.max(3,Math.round(s[2]/total*100))+'%"></i></div></div>').join('');
   }
 
-  /* ============ LEADS (Apps Script) ============ */
-  function jsonp(params){
-    return new Promise((resolve,reject)=>{
-      if(!window.DASH||!DASH.API){ reject(new Error('sin_config')); return; }
-      const cb='cb_'+Math.random().toString(36).slice(2); const s=document.createElement('script');
-      const to=setTimeout(()=>{cleanup();reject(new Error('timeout'));},25000);
-      function cleanup(){ clearTimeout(to); delete window[cb]; s.remove(); }
-      window[cb]=d=>{ cleanup(); resolve(d); }; s.onerror=()=>{ cleanup(); reject(new Error('network')); };
-      s.src=DASH.API+'?'+new URLSearchParams(Object.assign({},params,{key:DASH.KEY,callback:cb})).toString();
-      document.head.appendChild(s);
-    });
-  }
+  /* ============ LEADS (via proxy /api/leads) ============ */
   function deriveTipo(l){ const s=((l.campana||'')+' '+(l.anuncio||'')).toUpperCase(); if(s.indexOf('B2C')>=0) return 'b2c'; if(s.indexOf('B2B')>=0) return 'b2b'; return l.tipo||'b2c'; }
   function switchTab(t){ tipo=t; document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tipo===t)); render(); }
   function setFiltro(e){ filtro=e; render(); }
 
   function loadLeads(){
-    jsonp({action:'leads'}).then(d=>{
-      if(d.error) throw new Error(d.error);
+    gas({action:'leads'}).then(d=>{
       const all=(d.rows||[]).filter(l=>!isTest(l)).map(l=>Object.assign(l,{tipo:deriveTipo(l),celular:cleanPhone(l.celular)}));
       cache.b2c=all.filter(l=>l.tipo==='b2c'); cache.b2b=all.filter(l=>l.tipo==='b2b');
       document.getElementById('cnt-b2c').textContent=cache.b2c.length;
@@ -425,9 +461,7 @@
       document.getElementById('upd').textContent='Actualizado '+(d.ts||'');
       renderFunnel(); render();
     }).catch(err=>{
-      const c=document.getElementById('content');
-      if(err.message==='sin_config') c.innerHTML='<div class="state">Falta configurar: pega la URL del Apps Script en <code>config.js</code>.</div>';
-      else c.innerHTML='<div class="state">No pude cargar los leads ('+esc(err.message)+').</div>';
+      document.getElementById('content').innerHTML='<div class="state">No pude cargar los leads ('+esc(err.message)+').</div>';
       document.getElementById('upd').textContent='sin conexión';
     });
   }
@@ -465,7 +499,7 @@
     sv.className='save show'; sv.textContent='Guardando…';
     const l=(cache[tipo]||[]).find(x=>String(x.id)===String(id)); if(l) l.status=val;
     renderFunnel();
-    jsonp({action:'update',id:id,status:val}).then(r=>{
+    gas({action:'update',id:id,status:val}).then(r=>{
       if(r.ok){ sv.className='save show ok'; sv.textContent=r.capi?'Guardado · enviado a Meta':'Guardado'; setTimeout(()=>sv.classList.remove('show'),2800); }
       else throw new Error(r.error||'error');
     }).catch(err=>{ sv.className='save show err'; sv.textContent='Error: '+esc(err.message); });
@@ -495,8 +529,9 @@
     if(manual){ const b=document.getElementById('refbtn'); b.classList.add('spin'); setTimeout(()=>b.classList.remove('spin'),1500); }
     loadMetrics(); loadLeads();
   }
-  renderPresets(); loadAll(false);
-  if(window.DASH&&DASH.REFRESH_MS) setInterval(()=>{ if(!document.hidden) loadLeads(); }, DASH.REFRESH_MS);
+  renderPresets();
+  if(PWD()){ hideLogin(); loadAll(false); } else { showLogin(false); }
+  setInterval(()=>{ if(!document.hidden && PWD()) loadLeads(); }, (window.DASH&&DASH.REFRESH_MS)||90000);
 </script>
 </body>
 </html>
