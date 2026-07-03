@@ -140,6 +140,21 @@
   .state{text-align:center;padding:48px 20px;color:var(--ink)}.state svg{width:40px;height:40px;stroke:var(--lila);margin:0 auto 12px}.state code{background:#fff;border:1px solid var(--line);padding:2px 7px;border-radius:6px;font-size:.8rem}
   .spin2{width:38px;height:38px;border:3px solid var(--line);border-top-color:var(--vio);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 14px}
   footer{text-align:center;padding:0 0 34px;color:#9a94bd;font-size:.6rem}
+  tbody tr.clk{cursor:pointer}
+  .pvhint{font-size:.6rem;color:#9a94bd;margin-top:10px;display:flex;align-items:center;gap:6px}
+  .pvhint svg{width:12px;height:12px;stroke:var(--lila)}
+  /* ---- modal preview ---- */
+  #pv{position:fixed;inset:0;background:rgba(22,15,56,.66);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+  #pv.open{display:flex}
+  .pvcard{background:#fff;border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.4);width:min(430px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;animation:rise .3s cubic-bezier(.2,.8,.2,1) both}
+  .pvtop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .pvtop .t{font-weight:800;font-size:.86rem;max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pvx{border:0;background:var(--pink);color:var(--vio);width:32px;height:32px;border-radius:10px;cursor:pointer;font-size:1.05rem;font-weight:800;line-height:1}
+  .pvfmts{display:flex;gap:6px;padding:10px 16px 0}
+  .pvfmt{border:1px solid var(--line);background:#fff;color:var(--ink);padding:6px 13px;border-radius:18px;font-size:.68rem;font-weight:700;cursor:pointer;font-family:inherit}
+  .pvfmt.on{background:var(--vio);color:#fff;border-color:var(--vio)}
+  .pvbody{padding:12px;overflow:auto;display:flex;justify-content:center;min-height:340px}
+  .pvbody iframe{border:0;border-radius:12px}
   @keyframes sp{to{transform:rotate(360deg)}}@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 </style>
 </head>
@@ -168,6 +183,15 @@
     <div class="panel">
       <h2>Anuncios · top por gasto</h2>
       <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r">CTR</th><th class="r">Impr.</th></tr></thead><tbody><tr><td colspan="7"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
+      <div class="pvhint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Toca un anuncio para ver su preview real de Facebook</div>
+    </div>
+  </div>
+
+  <div id="pv" onclick="if(event.target===this)closePv()">
+    <div class="pvcard">
+      <div class="pvtop"><div class="t" id="pvt">Anuncio</div><button class="pvx" onclick="closePv()">×</button></div>
+      <div class="pvfmts" id="pvfmts"></div>
+      <div class="pvbody" id="pvbody"><div class="state"><div class="spin2"></div>Cargando preview…</div></div>
     </div>
   </div>
 
@@ -233,11 +257,11 @@
         :'<div class="state">Sin datos en este rango.</div>';
     }).catch(e=>{ document.getElementById('camps').innerHTML='<div class="state">'+esc(e.message)+'</div>'; });
     api('level=ad&'+dp).then(d=>{
-      const rows=d.map(a=>({name:a.ad_name,camp:a.campaign_name,spend:Number(a.spend)||0,imp:Number(a.impressions)||0,ctr:Number(a.ctr)||0,leads:leadsOf(a)})).sort((x,y)=>y.spend-x.spend).slice(0,25);
+      const rows=d.map(a=>({id:a.ad_id,name:a.ad_name,camp:a.campaign_name,spend:Number(a.spend)||0,imp:Number(a.impressions)||0,ctr:Number(a.ctr)||0,leads:leadsOf(a)})).sort((x,y)=>y.spend-x.spend).slice(0,25);
       const mx=rows.length?rows[0].spend||1:1;
       const tb=document.querySelector('#adsTable tbody');
       tb.innerHTML=rows.length?rows.map(a=>{const k=kindOf(a.camp);
-        return '<tr><td><div class="an" title="'+esc(a.name)+'">'+esc(a.name)+'</div><div class="bar"><i style="width:'+Math.max(2,Math.round(a.spend/mx*100))+'%"></i></div></td>'
+        return '<tr class="clk" onclick="openPv(\''+esc(a.id)+'\',\''+esc(a.name).replace(/'/g,'&#39;')+'\')"><td><div class="an" title="'+esc(a.name)+'">'+esc(a.name)+'</div><div class="bar"><i style="width:'+Math.max(2,Math.round(a.spend/mx*100))+'%"></i></div></td>'
         +'<td><span class="cchip '+k[0]+'">'+esc(k[1])+'</span></td>'
         +'<td class="r num">'+money(a.spend)+'</td><td class="r num'+(a.leads?' hot':'')+'">'+intf(a.leads)+'</td><td class="r num">'+(a.leads?money(a.spend/a.leads):'—')+'</td>'
         +'<td class="r num">'+a.ctr.toFixed(2)+'%</td><td class="r num">'+intf(a.imp)+'</td></tr>';}).join('')
@@ -327,6 +351,24 @@
       else throw new Error(r.error||'error');
     }).catch(err=>{ sv.className='save show err'; sv.textContent='Error: '+esc(err.message); });
   }
+
+  /* ============ PREVIEW DE ANUNCIO ============ */
+  const PVF=[['MOBILE_FEED_STANDARD','Móvil'],['DESKTOP_FEED_STANDARD','Desktop'],['FACEBOOK_STORY_MOBILE','Story']];
+  let pvAd=null, pvFmt='MOBILE_FEED_STANDARD';
+  function openPv(id,name){ pvAd=id; pvFmt='MOBILE_FEED_STANDARD'; document.getElementById('pvt').textContent=name; document.getElementById('pv').classList.add('open'); document.body.style.overflow='hidden'; loadPv(); }
+  function closePv(){ document.getElementById('pv').classList.remove('open'); document.getElementById('pvbody').innerHTML=''; document.body.style.overflow=''; }
+  function setPvFmt(f){ pvFmt=f; loadPv(); }
+  function loadPv(){
+    document.getElementById('pvfmts').innerHTML=PVF.map(f=>'<button class="pvfmt'+(pvFmt===f[0]?' on':'')+'" onclick="setPvFmt(\''+f[0]+'\')">'+f[1]+'</button>').join('');
+    const b=document.getElementById('pvbody');
+    b.innerHTML='<div class="state"><div class="spin2"></div>Cargando preview…</div>';
+    fetch('/api/insights?preview='+pvAd+'&format='+pvFmt).then(r=>r.json()).then(j=>{
+      if(j.error) throw new Error(j.error);
+      b.innerHTML=j.body||'<div class="state">Sin preview disponible.</div>';
+      const f=b.querySelector('iframe'); if(f){ f.style.maxWidth='100%'; }
+    }).catch(e=>{ b.innerHTML='<div class="state">'+esc(e.message)+'</div>'; });
+  }
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closePv(); });
 
   function loadAll(manual){
     if(manual){ const b=document.getElementById('refbtn'); b.classList.add('spin'); setTimeout(()=>b.classList.remove('spin'),1500); }

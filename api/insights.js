@@ -19,7 +19,21 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (!TOKEN) return res.status(500).json({ error: 'Falta META_TOKEN en las variables de entorno de Vercel' });
 
-  const { level = 'campaign', preset = 'maximum', from, to, daily } = req.query;
+  const { level = 'campaign', preset = 'maximum', from, to, daily, preview, format } = req.query;
+
+  // Preview oficial de un anuncio: /api/insights?preview=AD_ID&format=MOBILE_FEED_STANDARD
+  if (preview) {
+    if (!/^[0-9]+$/.test(preview)) return res.status(400).json({ error: 'ad id inválido' });
+    const fmt = /^[A-Z_]+$/.test(format || '') ? format : 'MOBILE_FEED_STANDARD';
+    try {
+      const r = await fetch(`https://graph.facebook.com/${API_VERSION}/${preview}/previews?ad_format=${fmt}&access_token=${TOKEN}`);
+      const j = await r.json();
+      if (j.error) return res.status(400).json({ error: j.error.message });
+      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
+      return res.status(200).json({ success: true, body: (j.data && j.data[0] && j.data[0].body) || '' });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
   if (!FIELDS[level]) return res.status(400).json({ error: 'Nivel inválido' });
 
   let dateParam = (from && to)
