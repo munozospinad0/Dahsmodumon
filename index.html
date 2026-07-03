@@ -111,6 +111,10 @@
   .num.hot{color:var(--converted)}
   .pvhint{font-size:.72rem;color:#9a94bd;margin:12px 4px 6px 16px;display:flex;align-items:center;gap:7px;font-weight:600}
   .pvhint svg{width:14px;height:14px;stroke:var(--lila)}
+  .seebtn{border:0;background:var(--pink);color:var(--vio);padding:8px 14px;border-radius:20px;font-size:.74rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:.2s;white-space:nowrap}
+  .seebtn:hover{background:var(--vio);color:#fff}
+  .seebtn svg{width:13px;height:13px;stroke:currentColor}
+  .pvload{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;color:var(--ink);font-size:.82rem;font-weight:600;text-align:center}
 
   /* ---- CRM ---- */
   .tabs{display:flex;gap:10px;flex-wrap:wrap}
@@ -240,7 +244,7 @@
     <h2>Anuncios</h2>
     <p class="sub">Top por gasto · toca cualquier fila para ver el anuncio real</p>
     <div class="tcard">
-      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r">CTR</th><th class="r">Impr.</th></tr></thead><tbody><tr><td colspan="7"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
+      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="8"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
       <div class="pvhint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Toca un anuncio para ver su preview real de Facebook</div>
     </div>
   </section>
@@ -368,8 +372,9 @@
         return '<tr class="clk" onclick="openPv(\''+esc(a.id)+'\',\''+esc(a.name).replace(/'/g,'&#39;')+'\')"><td><div class="an" title="'+esc(a.name)+'">'+esc(a.name)+'</div><div class="bar"><i style="width:'+Math.max(2,Math.round(a.spend/mx*100))+'%"></i></div></td>'
         +'<td><span class="cchip '+k[0]+'">'+esc(k[1])+'</span></td>'
         +'<td class="r num">'+money(a.spend)+'</td><td class="r num'+(a.leads?' hot':'')+'">'+intf(a.leads)+'</td><td class="r num">'+(a.leads?money(a.spend/a.leads):'—')+'</td>'
-        +'<td class="r num">'+a.ctr.toFixed(2)+'%</td><td class="r num">'+intf(a.imp)+'</td></tr>';}).join('')
-        :'<tr><td colspan="7"><div class="state" style="padding:18px">Sin entregas aún en este rango.</div></td></tr>';
+        +'<td class="r num">'+a.ctr.toFixed(2)+'%</td><td class="r num">'+intf(a.imp)+'</td>'
+        +'<td class="r"><button class="seebtn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Ver</button></td></tr>';}).join('')
+        :'<tr><td colspan="8"><div class="state" style="padding:18px">Sin entregas aún en este rango.</div></td></tr>';
       // Barras: leads por anuncio (o CTR si aún no hay leads)
       const withLeads=rows.filter(a=>a.leads>0).slice(0,7);
       const src=withLeads.length?withLeads:rows.slice(0,7);
@@ -507,20 +512,29 @@
 
   /* ============ PREVIEW DE ANUNCIO ============ */
   const PVF=[['MOBILE_FEED_STANDARD','Móvil'],['DESKTOP_FEED_STANDARD','Desktop'],['FACEBOOK_STORY_MOBILE','Story']];
-  let pvAd=null, pvFmt='MOBILE_FEED_STANDARD';
+  let pvAd=null, pvFmt='MOBILE_FEED_STANDARD', pvCache={};
   function openPv(id,name){ pvAd=id; pvFmt='MOBILE_FEED_STANDARD'; document.getElementById('pvt').textContent=name; document.getElementById('pv').classList.add('open'); document.body.style.overflow='hidden'; loadPv(); }
   function closePv(){ document.getElementById('pv').classList.remove('open'); document.getElementById('pvbody').innerHTML=''; document.body.style.overflow=''; }
   function setPvFmt(f){ pvFmt=f; loadPv(); }
+  function showPvBody(html){
+    const b=document.getElementById('pvbody');
+    if(!html){ b.innerHTML='<div class="state">Este formato no está disponible para este anuncio.<br>Prueba con Móvil o Desktop.</div>'; return; }
+    b.innerHTML='<div class="pvload" id="pvload"><div class="spin2"></div>Cargando el anuncio real desde Facebook…<br><small style="font-weight:600;color:#9a94bd">tarda unos segundos</small></div>'+html;
+    const f=b.querySelector('iframe');
+    if(f){ f.style.maxWidth='100%'; f.style.display='none';
+      const done=()=>{ const l=document.getElementById('pvload'); if(l) l.remove(); f.style.display=''; };
+      f.addEventListener('load',done); setTimeout(done,6000); // por si el evento no dispara
+    } else { const l=document.getElementById('pvload'); if(l) l.remove(); }
+  }
   function loadPv(){
     document.getElementById('pvfmts').innerHTML=PVF.map(f=>'<button class="pvfmt'+(pvFmt===f[0]?' on':'')+'" onclick="setPvFmt(\''+f[0]+'\')">'+f[1]+'</button>').join('');
-    const b=document.getElementById('pvbody');
-    b.innerHTML='<div class="state"><div class="spin2"></div>Cargando preview…</div>';
+    const key=pvAd+'|'+pvFmt, b=document.getElementById('pvbody');
+    if(key in pvCache){ showPvBody(pvCache[key]); return; }  // sin llamada extra a la API
+    b.innerHTML='<div class="pvload"><div class="spin2"></div>Cargando el anuncio real desde Facebook…<br><small style="font-weight:600;color:#9a94bd">tarda unos segundos</small></div>';
     fetch('/api/insights?preview='+pvAd+'&format='+pvFmt+'&password='+encodeURIComponent(PWD())).then(r=>r.json()).then(j=>{
       if(j.error) throw new Error(j.error);
-      if(!j.body){ b.innerHTML='<div class="state">Este formato no está disponible para este anuncio.<br>Prueba con Móvil o Desktop.</div>'; return; }
-      b.innerHTML=j.body;
-      const f=b.querySelector('iframe');
-      if(f){ f.style.maxWidth='100%'; f.onload=null; setTimeout(()=>{ /* si el iframe queda vacío no hay señal fiable; dejamos hint */ },0); }
+      pvCache[key]=j.body||'';
+      showPvBody(pvCache[key]);
     }).catch(e=>{ b.innerHTML='<div class="state">'+esc(e.message)+'</div>'; });
   }
   document.addEventListener('keydown',e=>{ if(e.key==='Escape') closePv(); });
