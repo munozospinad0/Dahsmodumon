@@ -293,6 +293,7 @@
   const STATUSES=['created','contacted','qualified','disqualified','converted'];
   const PRESETS=[['today','Hoy'],['yesterday','Ayer'],['last_7d','7 días'],['last_30d','30 días'],['maximum','Todo']];
   let tipo='b2c', filtro='todos', preset='maximum', cache={b2c:[],b2b:[]}, charts={};
+  const pendingStatus={};   // id -> estado recién marcado, protegido hasta que el server lo confirme
   const S=p=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'+p+'</svg>';
   const IC={
     mail:S('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/>'),
@@ -333,7 +334,7 @@
   }
 
   async function api(q){ const r=await fetch('/api/insights?'+q+'&password='+encodeURIComponent(PWD())); if(r.status===401){ showLogin(false); throw new Error('Acceso requerido'); } const j=await r.json(); if(j.error) throw new Error(j.error); return j.data||[]; }
-  async function gas(params){ const r=await fetch('/api/leads?'+new URLSearchParams(Object.assign({password:PWD()},params)).toString()); if(r.status===401){ showLogin(false); throw new Error('Acceso requerido'); } const j=await r.json(); if(j.error) throw new Error(j.error); return j; }
+  async function gas(params){ const qs=new URLSearchParams(Object.assign({password:PWD()},params)); qs.set('_',String(Date.now())); const r=await fetch('/api/leads?'+qs.toString(),{cache:'no-store'}); if(r.status===401){ showLogin(false); throw new Error('Acceso requerido'); } const j=await r.json(); if(j.error) throw new Error(j.error); return j; }
   function mkChart(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
 
   function loadMetrics(){
@@ -460,6 +461,8 @@
   function loadLeads(){
     gas({action:'leads'}).then(d=>{
       const all=(d.rows||[]).filter(l=>!isTest(l)).map(l=>Object.assign(l,{tipo:deriveTipo(l),celular:cleanPhone(l.celular)}));
+      // Un refresco NO debe pisar un estado que acabas de marcar: si el server ya lo trae, se confirma; si no, se mantiene tu cambio.
+      all.forEach(l=>{ const p=pendingStatus[String(l.id)]; if(p!=null){ if(l.status===p) delete pendingStatus[String(l.id)]; else l.status=p; } });
       cache.b2c=all.filter(l=>l.tipo==='b2c'); cache.b2b=all.filter(l=>l.tipo==='b2b');
       document.getElementById('cnt-b2c').textContent=cache.b2c.length;
       document.getElementById('cnt-b2b').textContent=cache.b2b.length;
@@ -502,12 +505,20 @@
     const val=sel.value, sv=document.getElementById('sv-'+id);
     sel.setAttribute('data-e',val); sel.closest('.lead').setAttribute('data-e',val);
     sv.className='save show'; sv.textContent='Guardando…';
-    const l=(cache[tipo]||[]).find(x=>String(x.id)===String(id)); if(l) l.status=val;
+    const l=(cache[tipo]||[]).find(x=>String(x.id)===String(id)); const prev=l?l.status:'created';
+    if(l) l.status=val;
+    pendingStatus[String(id)]=val;                 // proteger contra refrescos hasta confirmar
     renderFunnel();
     gas({action:'update',id:id,status:val}).then(r=>{
       if(r.ok){ sv.className='save show ok'; sv.textContent=r.capi?'Guardado · enviado a Meta':'Guardado'; setTimeout(()=>sv.classList.remove('show'),2800); }
       else throw new Error(r.error||'error');
-    }).catch(err=>{ sv.className='save show err'; sv.textContent='Error: '+esc(err.message); });
+    }).catch(err=>{
+      delete pendingStatus[String(id)];            // falló de verdad: dejar de proteger y reflejar la realidad
+      if(l) l.status=prev;
+      sel.value=prev; sel.setAttribute('data-e',prev); const c=sel.closest('.lead'); if(c) c.setAttribute('data-e',prev);
+      renderFunnel();
+      sv.className='save show err'; sv.textContent='No se guardó: '+esc(err.message);
+    });
   }
 
   /* ============ PREVIEW DE ANUNCIO ============ */

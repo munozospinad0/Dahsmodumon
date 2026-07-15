@@ -20,7 +20,9 @@ module.exports = async function handler(req, res) {
     const r = await fetch(GAS_URL + '?' + params.toString(), { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (dash-modumon)' } });
     const text = await r.text();
     let j; try { j = JSON.parse(text); } catch { return res.status(502).json({ error: 'Respuesta inválida del Apps Script', status: r.status, ct: r.headers.get('content-type'), snippet: text.slice(0, 160) }); }
-    if (action === 'leads') res.setHeader('Cache-Control', 's-maxage=20, stale-while-revalidate');
+    // Nunca cachear: el estado de los leads cambia en vivo y una foto vieja hacía que
+    // al recargar el lead marcado "contactado" reapareciera en gris.
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     return res.status(200).json(j);
   } catch (e) {
     return res.status(500).json({ error: e.message });
