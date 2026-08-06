@@ -42,6 +42,8 @@ function doGet(e){
   if(p.key!==KEY) return out_(p.callback,{error:'unauthorized'});
   try{
     if(p.action==='update')  return out_(p.callback, updateLead_(p.id,p.status));
+    if(p.action==='config')  return out_(p.callback, {autogreet: getConfig_('autogreet')||'on'});
+    if(p.action==='setconfig') return out_(p.callback, setConfig_(p.k,p.v));
     return out_(p.callback, getLeads_());
   }catch(err){ return out_(p.callback,{error:String(err)}); }
 }
@@ -91,6 +93,62 @@ function updateLead_(id,status){
     }
   }
   return {ok:false,error:'lead no encontrado'};
+}
+
+/* ========= SALUDO AUTOMÁTICO POR WHATSAPP (plantilla) ========= */
+// Config (interruptor del dashboard): guardado en Script Properties.
+function getConfig_(k){ return PropertiesService.getScriptProperties().getProperty('cfg_'+k)||''; }
+function setConfig_(k,v){ PropertiesService.getScriptProperties().setProperty('cfg_'+k,String(v||'')); return {ok:true,k:k,v:String(v||'')}; }
+
+// Envía la plantilla por Cloud API. Requiere Script Properties: WA_TOKEN, WA_PHONE_NUMBER_ID.
+function waSendTemplate_(phone,name){
+  const props=PropertiesService.getScriptProperties();
+  const tok=props.getProperty('WA_TOKEN'), pid=props.getProperty('WA_PHONE_NUMBER_ID');
+  const tpl=props.getProperty('WA_TEMPLATE_NAME')||'modumon_primer_contacto';
+  const lang=props.getProperty('WA_TEMPLATE_LANG')||'es';
+  const ver=props.getProperty('WA_API_VERSION')||'v23.0';
+  if(!tok||!pid) return {ok:false,error:'faltan WA_TOKEN/WA_PHONE_NUMBER_ID en Script Properties'};
+  let to=String(phone||'').replace(/[^0-9]/g,'');
+  if(to.length===8) to='507'+to;               // Panamá local -> internacional
+  if(to.length<8) return {ok:false,error:'telefono invalido'};
+  const payload={messaging_product:'whatsapp',to:to,type:'template',template:{name:tpl,language:{code:lang},components:[{type:'body',parameters:[{type:'text',text:(String(name||'').trim()||'amig@')}]}]}};
+  try{
+    const r=UrlFetchApp.fetch('https://graph.facebook.com/'+ver+'/'+pid+'/messages',{method:'post',contentType:'application/json',headers:{Authorization:'Bearer '+tok},payload:JSON.stringify(payload),muteHttpExceptions:true});
+    const j=JSON.parse(r.getContentText()||'{}');
+    if(j.error) return {ok:false,error:j.error.message,code:j.error.code};
+    return {ok:true};
+  }catch(err){ return {ok:false,error:String(err)}; }
+}
+
+// Trigger (cada 5 min): saluda SOLO a leads nuevos. La 1a corrida marca los existentes como 'seed' y NO les envía.
+function autoGreetNewLeads(){
+  if(getConfig_('autogreet')==='off') return;
+  const props=PropertiesService.getScriptProperties();
+  const seeded=props.getProperty('WA_GREET_INIT')==='1';
+  const ss=SpreadsheetApp.getActiveSpreadsheet();
+  ss.getSheets().forEach(sh=>{
+    if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
+    const sck=statusKey_(m);
+    let gc=m['wa_greeted']; if(!gc){ gc=sh.getLastColumn()+1; sh.getRange(1,gc).setValue('wa_greeted'); }
+    const data=sh.getDataRange().getValues();
+    const g=(row,n)=> m[n]?row[m[n]-1]:'';
+    for(let r=1;r<data.length;r++){
+      const row=data[r], rowN=r+1;
+      if(String(row[gc-1]||'').trim()) continue;                    // ya saludado o semilla
+      if(!seeded){ sh.getRange(rowN,gc).setValue('seed'); continue; } // 1a corrida: solo semilla, no envía
+      const fn=String(g(row,'first_name')||'').trim();
+      if(isTest_(fn,g(row,'last_name'),g(row,'email'))){ sh.getRange(rowN,gc).setValue('test'); continue; }
+      const phone=clean_(g(row,'phone_number'));
+      if(!phone){ sh.getRange(rowN,gc).setValue('no-phone'); continue; }
+      const res=waSendTemplate_(phone,fn.split(/\s+/)[0]);
+      if(res.ok){
+        sh.getRange(rowN,gc).setValue('sent '+new Date().toLocaleString('es-PA'));
+        if(sck){ const cur=String(row[m[sck]-1]||'').toLowerCase().trim(); if(!cur||cur==='created') sh.getRange(rowN,m[sck]).setValue('contacted'); }
+      } else { sh.getRange(rowN,gc).setValue('error: '+String(res.error||'').slice(0,45)); }
+      Utilities.sleep(400);
+    }
+  });
+  if(!seeded) props.setProperty('WA_GREET_INIT','1');
 }
 
 // Métricas de campañas desde la Marketing API (cacheadas 10 min para no gastar cuota)

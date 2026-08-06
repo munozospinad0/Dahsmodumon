@@ -252,6 +252,45 @@
   <section>
     <h2>Leads</h2>
     <p class="sub">Gestiona cada lead: al tocar el número se abre WhatsApp · cambia el estado y se envía a Meta</p>
+    <div class="watools">
+      <div class="watest">
+        <div class="watest-h">🧪 Probar plantilla de WhatsApp</div>
+        <div class="watest-row">
+          <input id="wtcc" class="wtin cc" value="+507" placeholder="+507">
+          <input id="wtnum" class="wtin" placeholder="Número (ej. 6466 0991)" inputmode="numeric">
+          <input id="wtname" class="wtin" placeholder="Nombre (opcional)">
+          <button class="btn wtsend" onclick="sendTest()">Enviar test</button>
+        </div>
+        <div class="wtmsg" id="wtmsg"></div>
+      </div>
+      <label class="watoggle">
+        <div><b>Saludo automático</b><span>Manda la plantilla y marca "contactado" a cada lead nuevo</span></div>
+        <input type="checkbox" id="autoGreet" onchange="setAutoGreet(this.checked)"><span class="tsw"></span>
+      </label>
+    </div>
+    <style>
+    .watools{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin:0 0 18px}
+    @media(max-width:760px){.watools{grid-template-columns:1fr}}
+    .watest{background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:14px 16px;box-shadow:0 6px 16px rgba(62,42,155,.06)}
+    .watest-h{font-weight:800;color:var(--vio);font-size:.9rem;margin-bottom:10px}
+    .watest-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .wtin{border:1px solid #ddd;border-radius:10px;padding:10px 12px;font:inherit;font-size:.85rem;flex:1;min-width:110px}
+    .wtin.cc{max-width:74px;flex:none;text-align:center}
+    .wtin:focus{outline:none;border-color:var(--vio)}
+    .wtsend{padding:10px 16px!important;font-size:.82rem!important;box-shadow:none!important}
+    .wtmsg{margin-top:8px;font-size:.82rem;font-weight:700;min-height:16px}
+    .wtmsg.ok{color:var(--converted)}.wtmsg.err{color:var(--disqualified)}
+    .watoggle{background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:14px 16px;box-shadow:0 6px 16px rgba(62,42,155,.06);display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer}
+    .watoggle b{display:block;color:var(--vio);font-size:.9rem}.watoggle span{color:#8b86a8;font-size:.76rem;font-weight:600}
+    .watoggle input{display:none}
+    .tsw{flex:none;width:46px;height:26px;border-radius:99px;background:#d5d2e4;position:relative;transition:.2s}
+    .tsw:after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 2px 5px rgba(0,0,0,.2)}
+    .watoggle input:checked+.tsw{background:var(--converted)}
+    .watoggle input:checked+.tsw:after{transform:translateX(20px)}
+    .wabtn{border:0;background:var(--converted);color:#fff;padding:8px 12px;border-radius:10px;font-size:.75rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;margin-left:8px;transition:.2s;white-space:nowrap}
+    .wabtn:hover{filter:brightness(1.08)}.wabtn:disabled{opacity:.6;cursor:default}
+    .wabtn svg{width:13px;height:13px;stroke:#fff;fill:none}
+    </style>
     <div class="tabs">
       <button class="tab on" data-tipo="b2c" onclick="switchTab('b2c')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 10l9-7 9 7"/><path d="M5 9v11h14V9"/></svg> Hogar (B2C) <span class="cnt" id="cnt-b2c">0</span></button>
       <button class="tab" data-tipo="b2b" onclick="switchTab('b2b')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/></svg> Proyectos (B2B) <span class="cnt" id="cnt-b2b">0</span></button>
@@ -459,7 +498,7 @@
   function setFiltro(e){ filtro=e; render(); }
 
   function loadLeads(){
-    gas({action:'leads'}).then(d=>{
+    gas({action:'leads'}).then(d=>{ loadAutoGreet();
       const all=(d.rows||[]).filter(l=>!isTest(l)).map(l=>Object.assign(l,{tipo:deriveTipo(l),celular:cleanPhone(l.celular)}));
       // Un refresco NO debe pisar un estado que acabas de marcar: si el server ya lo trae, se confirma; si no, se mantiene tu cambio.
       all.forEach(l=>{ const p=pendingStatus[String(l.id)]; if(p!=null){ if(l.status===p) delete pendingStatus[String(l.id)]; else l.status=p; } });
@@ -496,7 +535,7 @@
       +(l.correo?'<div class="row">'+IC.mail+'<a href="mailto:'+esc(l.correo)+'">'+esc(l.correo)+'</a></div>':'')
       +(l.celular?'<div class="row">'+IC.phone+'<a href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+esc(l.celular)+'</a></div>':'')
       +'<div class="tags">'+(l.empresa?'<span class="tag">'+esc(l.empresa)+'</span>':'')+(l.extra?'<span class="tag">'+esc(l.extra)+'</span>':'')+(l.anuncio?'<span class="tag camp">'+esc(l.anuncio)+'</span>':'')+'</div>'
-      +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select><span class="save" id="sv-'+esc(l.id)+'"></span></div>'
+      +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select><span class="save" id="sv-'+esc(l.id)+'"></span>'+(l.celular?'<button class="wabtn" onclick="sendInit(this,\''+esc(l.id)+'\')" title="Enviar saludo inicial por WhatsApp">'+IC.send+'Saludo</button>':'')+'</div>'
       +(l.capi?'<div class="capi">'+IC.send+esc(l.capi)+'</div>':'')
       +'</div>';
   }
@@ -519,6 +558,43 @@
       renderFunnel();
       sv.className='save show err'; sv.textContent='No se guardó: '+esc(err.message);
     });
+  }
+
+  /* ============ WHATSAPP: test + saludo por lead + interruptor ============ */
+  async function waSend(phone,name){
+    const r=await fetch('/api/send-template?password='+encodeURIComponent(PWD())+'&phone='+encodeURIComponent(phone)+'&name='+encodeURIComponent(name||''),{cache:'no-store'});
+    if(r.status===401){ showLogin(false); throw new Error('Acceso requerido'); }
+    return r.json();
+  }
+  async function sendTest(){
+    const cc=(document.getElementById('wtcc').value||'').replace(/[^0-9]/g,'');
+    const num=(document.getElementById('wtnum').value||'').replace(/[^0-9]/g,'');
+    const name=(document.getElementById('wtname').value||'').trim();
+    const msg=document.getElementById('wtmsg'); const phone=cc+num;
+    if(phone.length<8){ msg.className='wtmsg err'; msg.textContent='Pon código de país + número (ej. +507 6466 0991)'; return; }
+    msg.className='wtmsg'; msg.textContent='Enviando…';
+    try{ const j=await waSend(phone,name);
+      if(j.ok){ msg.className='wtmsg ok'; msg.textContent='✓ Plantilla enviada a +'+phone+' — revisa ese WhatsApp'; }
+      else { msg.className='wtmsg err'; msg.textContent='✗ '+(j.error||'No se pudo enviar'); }
+    }catch(e){ msg.className='wtmsg err'; msg.textContent='✗ '+e.message; }
+  }
+  async function sendInit(btn,id){
+    const l=(cache[tipo]||[]).find(x=>String(x.id)===String(id)); if(!l) return;
+    const phone=String(l.celular||'').replace(/[^0-9]/g,''); if(phone.length<8){ alert('Número inválido'); return; }
+    const name=((l.nombre||'').trim().split(/\s+/)[0])||'';
+    const t0=btn.innerHTML; btn.disabled=true; btn.textContent='Enviando…';
+    try{ const j=await waSend(phone,name);
+      if(j.ok){ btn.textContent='✓ Enviado';
+        if((l.status||'created')==='created'){ l.status='contacted'; pendingStatus[String(id)]='contacted'; gas({action:'update',id:id,status:'contacted'}).then(()=>render()).catch(()=>{}); }
+      } else { btn.disabled=false; btn.innerHTML=t0; alert('No se envió: '+(j.error||'')); }
+    }catch(e){ btn.disabled=false; btn.innerHTML=t0; alert(e.message); }
+  }
+  async function loadAutoGreet(){
+    try{ const j=await gas({action:'config'}); const on=String(j&&j.autogreet!=null?j.autogreet:'on')!=='off'; const el=document.getElementById('autoGreet'); if(el) el.checked=on; }catch(e){}
+  }
+  async function setAutoGreet(on){
+    try{ await gas({action:'setconfig',k:'autogreet',v:on?'on':'off'}); }
+    catch(e){ alert('No se pudo guardar el interruptor (¿ya pegaste el Apps Script?): '+e.message); }
   }
 
   /* ============ PREVIEW DE ANUNCIO ============ */
