@@ -187,6 +187,25 @@
   .lgbtn{width:100%;border:0;background:linear-gradient(120deg,var(--vio),var(--vio2));color:#fff;padding:14px;border-radius:14px;font-weight:800;font-size:.95rem;cursor:pointer;font-family:inherit;box-shadow:0 10px 24px rgba(62,42,155,.35);transition:.2s}
   .lgbtn:hover{transform:translateY(-1px)}
   .lgerr{font-size:.76rem;color:var(--disqualified);font-weight:700;margin-top:12px;min-height:1em}
+  /* ---- calidad de lead ---- */
+  .qbox{display:flex;align-items:stretch;gap:14px;flex-wrap:wrap;margin:4px 0 12px}
+  .qk{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 18px;min-width:170px}
+  .qk .ql{display:block;font-size:.64rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#8a82a8}
+  .qk b{display:block;font-size:1.7rem;font-weight:900;color:#8a82a8;line-height:1.15;margin-top:2px}
+  .qk small{display:block;font-size:.7rem;color:#8a82a8;font-weight:600}
+  .qk.big{border-color:#FE881C;border-width:2px;background:#fff8f0}
+  .qk.big b{color:#FE881C;font-size:2.1rem}
+  .qk.big small{color:#b45309}
+  .qarrow{align-self:center;font-size:1.5rem;font-weight:900;color:#c9c2e8}
+  .qalert{display:none}
+  .qalert.on{display:block;background:#fff4f4;border:1px solid #f3c4c4;border-left:4px solid var(--disqualified);
+    border-radius:12px;padding:12px 16px;font-size:.86rem;color:#7f2323;line-height:1.5;margin-bottom:14px}
+  .qalert b{color:#5c1515}
+  th.qh{background:#fff8f0;color:#b45309}
+  td.qgood{color:#16a34a;font-weight:800}
+  td.qmid{color:#FE881C;font-weight:800}
+  td.qbad{color:#dc2626;font-weight:800}
+  td.qgood small,td.qmid small,td.qbad small{font-weight:700;opacity:.75}
   .lgfoot{font-size:.62rem;color:#9a94bd;margin-top:18px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
   .iconbtn{border:0;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;width:38px;height:38px;border-radius:12px;cursor:pointer;display:grid;place-items:center;transition:.2s}
   .iconbtn:hover{background:rgba(255,255,255,.22)}
@@ -243,8 +262,10 @@
   <section>
     <h2>Anuncios</h2>
     <p class="sub">Top por gasto · toca cualquier fila para ver el anuncio real</p>
+    <div class="qbox" id="qualityBox"></div>
+    <div class="qalert" id="qualityAlert"></div>
     <div class="tcard">
-      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="8"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
+      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r qh">Califican</th><th class="r qh">CPL calif.</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="10"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
       <div class="pvhint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Toca un anuncio para ver su preview real de Facebook</div>
     </div>
   </section>
@@ -407,14 +428,7 @@
 
     api('level=ad&'+dp).then(d=>{
       const rows=d.map(a=>({id:a.ad_id,name:a.ad_name,camp:a.campaign_name,spend:Number(a.spend)||0,imp:Number(a.impressions)||0,ctr:Number(a.ctr)||0,leads:leadsOf(a)})).sort((x,y)=>y.spend-x.spend).slice(0,25);
-      const mx=rows.length?rows[0].spend||1:1;
-      document.querySelector('#adsTable tbody').innerHTML=rows.length?rows.map(a=>{const k=kindOf(a.camp);
-        return '<tr class="clk" onclick="openPv(\''+esc(a.id)+'\',\''+esc(a.name).replace(/'/g,'&#39;')+'\')"><td><div class="an" title="'+esc(a.name)+'">'+esc(a.name)+'</div><div class="bar"><i style="width:'+Math.max(2,Math.round(a.spend/mx*100))+'%"></i></div></td>'
-        +'<td><span class="cchip '+k[0]+'">'+esc(k[1])+'</span></td>'
-        +'<td class="r num">'+money(a.spend)+'</td><td class="r num'+(a.leads?' hot':'')+'">'+intf(a.leads)+'</td><td class="r num">'+(a.leads?money(a.spend/a.leads):'—')+'</td>'
-        +'<td class="r num">'+a.ctr.toFixed(2)+'%</td><td class="r num">'+intf(a.imp)+'</td>'
-        +'<td class="r"><button class="seebtn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Ver</button></td></tr>';}).join('')
-        :'<tr><td colspan="8"><div class="state" style="padding:18px">Sin entregas aún en este rango.</div></td></tr>';
+      window.__adRows=rows; paintAds();
       // Barras: leads por anuncio (o CTR si aún no hay leads)
       const withLeads=rows.filter(a=>a.leads>0).slice(0,7);
       const src=withLeads.length?withLeads:rows.slice(0,7);
@@ -492,6 +506,66 @@
     document.getElementById('funnel').innerHTML=steps.map(s=>'<div class="fstep '+s[0]+'"><b>'+s[2]+'</b><span>'+s[1]+'</span><div class="fp">'+Math.round(s[2]/total*100)+'% del total</div><div class="fbar"><i style="width:'+Math.max(3,Math.round(s[2]/total*100))+'%"></i></div></div>').join('');
   }
 
+  /* ============ CALIDAD POR ANUNCIO ============
+     El CPL solo dice lo que cuesta que alguien llene un formulario. Cruzando el
+     estado del lead en el CRM con el gasto de Meta sale el número que de verdad
+     manda: cuánto cuesta un lead que el vendedor SÍ pudo trabajar. Suelen
+     diferir 20x o más, y el anuncio "más barato" suele ser el peor. */
+  window.LEADQ=null;
+  function buildLeadQ(all){
+    const m={};
+    all.forEach(l=>{ const k=String(l.anuncio||'').trim(); if(!k) return;
+      const e=m[k]||(m[k]={n:0,q:0,d:0});
+      e.n++; if(l.status==='qualified'||l.status==='converted') e.q++; if(l.status==='disqualified') e.d++; });
+    window.LEADQ=m; paintAds(); paintQualityKpi(all);
+  }
+  function paintAds(){
+    const rows=window.__adRows; const host=document.querySelector('#adsTable tbody'); if(!rows||!host) return;
+    const Q=window.LEADQ, mx=rows.length?rows[0].spend||1:1;
+    host.innerHTML=rows.length?rows.map(a=>{
+      const k=kindOf(a.camp), q=Q?(Q[a.name]||{n:0,q:0}):null;
+      let cal='<td class="r num">—</td><td class="r num">—</td>';
+      if(q&&q.n){
+        const pct=q.q/q.n*100;
+        const cls=q.q===0?'qbad':(pct>=15?'qgood':(pct>=5?'qmid':'qbad'));
+        cal='<td class="r num '+cls+'">'+q.q+' <small>('+pct.toFixed(0)+'%)</small></td>'+
+            '<td class="r num '+cls+'">'+(q.q?money(a.spend/q.q):'nunca')+'</td>';
+      }
+      return '<tr class="clk" onclick="openPv(\''+esc(a.id)+'\',\''+esc(a.name).replace(/'/g,'&#39;')+'\')"><td><div class="an" title="'+esc(a.name)+'">'+esc(a.name)+'</div><div class="bar"><i style="width:'+Math.max(2,Math.round(a.spend/mx*100))+'%"></i></div></td>'
+      +'<td><span class="cchip '+k[0]+'">'+esc(k[1])+'</span></td>'
+      +'<td class="r num">'+money(a.spend)+'</td><td class="r num'+(a.leads?' hot':'')+'">'+intf(a.leads)+'</td><td class="r num">'+(a.leads?money(a.spend/a.leads):'—')+'</td>'
+      +cal
+      +'<td class="r num">'+a.ctr.toFixed(2)+'%</td><td class="r num">'+intf(a.imp)+'</td>'
+      +'<td class="r"><button class="seebtn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Ver</button></td></tr>';}).join('')
+      :'<tr><td colspan="10"><div class="state" style="padding:18px">Sin entregas aún en este rango.</div></td></tr>';
+  }
+  /* KPI de calidad + aviso cuando un anuncio se come el presupuesto sin calificar */
+  function paintQualityKpi(all){
+    const rows=window.__adRows; if(!rows) return;
+    const gasto=rows.reduce((s,a)=>s+a.spend,0);
+    const q=all.filter(l=>l.status==='qualified'||l.status==='converted').length;
+    const n=all.length||1;
+    const box=document.getElementById('qualityBox'); if(!box) return;
+    const cpq=q?money(gasto/q):'—';
+    const cpl=money(gasto/n);
+    box.innerHTML=
+      '<div class="qk"><span class="ql">Costo x lead</span><b>'+cpl+'</b><small>lo que ves hoy</small></div>'+
+      '<div class="qarrow">→</div>'+
+      '<div class="qk big"><span class="ql">Costo x lead CALIFICADO</span><b>'+cpq+'</b>'+
+        '<small>'+q+' de '+n+' ('+(q/n*100).toFixed(1)+'%) sirvieron</small></div>';
+    const Q=window.LEADQ||{};
+    const malo=rows.filter(a=>a.spend/gasto>0.30).map(a=>({a,q:Q[a.name]||{n:0,q:0}}))
+                   .filter(x=>x.q.n>=20&&x.q.q/x.q.n<0.02)[0];
+    const al=document.getElementById('qualityAlert'); if(!al) return;
+    if(malo){
+      const pctG=(malo.a.spend/gasto*100).toFixed(0), pctQ=(malo.q.q/malo.q.n*100).toFixed(1);
+      al.className='qalert on';
+      al.innerHTML='<b>Revisa «'+esc(malo.a.name)+'»</b> — se lleva el '+pctG+'% del presupuesto y solo '+
+        pctQ+'% de sus '+malo.q.n+' leads califican ('+money(malo.a.spend/Math.max(1,malo.q.q))+' por lead útil). '+
+        'Es el CPL más bajo de la cuenta y el lead más caro de verdad.';
+    } else { al.className='qalert'; al.innerHTML=''; }
+  }
+
   /* ============ LEADS (via proxy /api/leads) ============ */
   function deriveTipo(l){ const s=((l.campana||'')+' '+(l.anuncio||'')).toUpperCase(); if(s.indexOf('B2C')>=0) return 'b2c'; if(s.indexOf('B2B')>=0) return 'b2b'; return l.tipo||'b2c'; }
   function switchTab(t){ tipo=t; document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tipo===t)); render(); }
@@ -502,6 +576,7 @@
       const all=(d.rows||[]).filter(l=>!isTest(l)).map(l=>Object.assign(l,{tipo:deriveTipo(l),celular:cleanPhone(l.celular)}));
       // Un refresco NO debe pisar un estado que acabas de marcar: si el server ya lo trae, se confirma; si no, se mantiene tu cambio.
       all.forEach(l=>{ const p=pendingStatus[String(l.id)]; if(p!=null){ if(l.status===p) delete pendingStatus[String(l.id)]; else l.status=p; } });
+      buildLeadQ(all);
       cache.b2c=all.filter(l=>l.tipo==='b2c'); cache.b2b=all.filter(l=>l.tipo==='b2b');
       document.getElementById('cnt-b2c').textContent=cache.b2c.length;
       document.getElementById('cnt-b2b').textContent=cache.b2b.length;
