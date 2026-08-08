@@ -94,7 +94,14 @@ function setMonto_(id,monto){
         // registrar una venta implica que el lead se convirtió: se sube el estado solo
         const sk=statusKey_(m);
         if(v>0 && sk) sh.getRange(row,m[sk]).setValue('converted');
-        return {ok:true,monto:v,status:v>0?'converted':undefined};
+        // y se le avisa a Meta CON el valor, para que pueda optimizar por dinero
+        let capi='';
+        if(v>0 && DATASET_ID){
+          const g=(n)=> m[n]?sh.getRange(row,m[n]).getValue():'';
+          const res=sendCapi_('converted',{lead_id:g('id'),email:g('email'),phone:g('phone_number'),monto:v});
+          capi='converted $'+v+(res.ok?' - enviado a Meta':' - error '+res.code);
+        }
+        return {ok:true,monto:v,status:v>0?'converted':undefined,capi:capi};
       }
     }
   }
@@ -207,7 +214,11 @@ function sendCapi_(eventName,lead){
   const ud={}; const lid=String(lead.lead_id||'').replace(/[^0-9]/g,''); if(lid) ud.lead_id=Number(lid);
   if(lead.email) ud.em=[sha256_(String(lead.email).trim().toLowerCase())];
   if(lead.phone){ const p=String(lead.phone).replace(/[^0-9]/g,''); if(p) ud.ph=[sha256_(p)]; }
-  const evt={event_name:eventName,event_time:Math.floor(Date.now()/1000),action_source:'system_generated',event_id:'modumon-'+lid+'-'+eventName+'-'+Date.now(),user_data:ud,custom_data:{event_source:'crm',lead_event_source:'modu.mon dashboard'}};
+  // Con el monto de venta, Meta puede optimizar por VALOR y no solo por conteo.
+  const cd={event_source:'crm',lead_event_source:'modu.mon dashboard'};
+  const val=Number(lead.monto)||0;
+  if(val>0){ cd.value=val; cd.currency='USD'; }
+  const evt={event_name:eventName,event_time:Math.floor(Date.now()/1000),action_source:'system_generated',event_id:'modumon-'+lid+'-'+eventName+'-'+Date.now(),user_data:ud,custom_data:cd};
   const url='https://graph.facebook.com/'+API_VER+'/'+DATASET_ID+'/events?access_token='+encodeURIComponent(token);
   const resp=UrlFetchApp.fetch(url,{method:'post',contentType:'application/json',payload:JSON.stringify({data:[evt]}),muteHttpExceptions:true});
   const code=resp.getResponseCode(); return {ok:code>=200&&code<300,code:code};
