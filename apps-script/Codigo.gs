@@ -7,16 +7,33 @@ const API_VER    = 'v21.0';
 const KEY        = 'modumon2026';
 const STATUSES   = ['created','contacted','qualified','disqualified','converted'];
 const CAPI_STAGES= ['contacted','qualified','disqualified','converted'];
+
+/* Cómo se llama cada etapa DENTRO de Meta.
+   'Contact' y 'Purchase' son eventos ESTÁNDAR: Meta los entiende de fábrica, salen en
+   el Administrador de eventos con su propia tarjeta y permiten pujar por VALOR.
+   El de calificado va personalizado porque Meta no tiene un estándar para
+   "lead que al vendedor le sirvió" — ese es el patrón de conversion leads.
+   Para cambiarlos, se toca SOLO esta tabla. */
+const EVENT_MAP = {
+  contacted:    'Contact',
+  qualified:    'Lead_Calificado',
+  disqualified: 'Lead_Descalificado',
+  converted:    'Purchase'
+};
+function metaEvent_(status){ return EVENT_MAP[status] || status; }
 const STATUS_ALIASES = ['lead_status','status','estado','lead status','lead_estado','lead status meta'];
 const STATUS_DEFAULT = 'lead_status';
 const MONTO_DEFAULT  = 'monto_venta';   // cuánto se vendió; lo escribe el vendedor desde el dashboard
 const MONTO_ALIASES  = ['monto_venta','monto','valor_venta','venta','valor','importe','total'];
+const PRODUCTO_DEFAULT = 'producto_venta'; // qué producto compró; lo escribe el vendedor desde el dashboard
+const PRODUCTO_ALIASES = ['producto_venta','producto','producto_vendido','que_compro','articulo','producto_comprado'];
 
 function META_TOKEN(){ return PropertiesService.getScriptProperties().getProperty('META_TOKEN') || ''; }
 function colMap_(sh){ const h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(x=>String(x).trim()); const m={}; h.forEach((x,i)=>m[x]=i+1); return {h,m}; }
 function statusKey_(m){ const keys=Object.keys(m); for(const a of STATUS_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function isLeadSheet_(m){ return !!(m['id']||m['email']||m['first_name']); }
 function montoKey_(m){ const keys=Object.keys(m); for(const a of MONTO_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
+function productoKey_(m){ const keys=Object.keys(m); for(const a of PRODUCTO_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function clean_(v){ return String(v==null?'':v).replace(/^[a-zA-Z]+:\s*/,'').trim(); }
 function isTest_(fn,ln,email){ return /test lead|dummy data/i.test(String(fn)+String(ln)+String(email)) || String(email).toLowerCase()==='test@meta.com'; }
 
@@ -45,7 +62,7 @@ function doGet(e){
   if(p.key!==KEY) return out_(p.callback,{error:'unauthorized'});
   try{
     if(p.action==='update')  return out_(p.callback, updateLead_(p.id,p.status));
-    if(p.action==='venta')   return out_(p.callback, setMonto_(p.id,p.monto));
+    if(p.action==='venta')   return out_(p.callback, setMonto_(p.id,p.monto,p.producto));
     if(p.action==='config')  return out_(p.callback, {autogreet: getConfig_('autogreet')||'on'});
     if(p.action==='setconfig') return out_(p.callback, setConfig_(p.k,p.v));
     return out_(p.callback, getLeads_());
@@ -56,7 +73,7 @@ function getLeads_(){
   const ss=SpreadsheetApp.getActiveSpreadsheet(); const rows=[];
   ss.getSheets().forEach(sh=>{
     if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
-    const sck=statusKey_(m); const mnk=montoKey_(m); const data=sh.getDataRange().getValues();
+    const sck=statusKey_(m); const mnk=montoKey_(m); const pdk=productoKey_(m); const data=sh.getDataRange().getValues();
     const g=(row,n)=> m[n]?row[m[n]-1]:'';
     for(let r=1;r<data.length;r++){
       const row=data[r]; const id=g(row,'id'), email=g(row,'email'), fn=g(row,'first_name'), ln=g(row,'last_name');
@@ -69,6 +86,7 @@ function getLeads_(){
         empresa:g(row,'company_name'), extra:g(row,'tipo_proyecto')||g(row,'espacio')||'',
         campana:g(row,'campaign_name'), anuncio:g(row,'ad_name'),
         monto: Number(String(mnk?row[m[mnk]-1]:'').replace(/[^0-9.\-]/g,''))||0,
+        producto: String(pdk?row[m[pdk]-1]:'').trim(),
         status: STATUSES.indexOf(st)>=0?st:'created', tipo:tipoFrom_(row,m,sh.getName()) });
     }
   });
@@ -77,20 +95,24 @@ function getLeads_(){
 
 // Registrar CUÁNTO se vendió a ese lead; escribe en la columna 'monto_venta' (la crea si falta).
 // Es lo que permite saber qué anuncio trajo dinero, no solo cuál trajo formularios.
-function setMonto_(id,monto){
+function setMonto_(id,monto,producto){
   const v=Number(String(monto==null?'':monto).replace(/[^0-9.\-]/g,''));
   if(!isFinite(v)||v<0) return {ok:false,error:'monto invalido'};
+  const prod=String(producto==null?'':producto).trim();
   const ss=SpreadsheetApp.getActiveSpreadsheet();
   for(const sh of ss.getSheets()){
     if(sh.getLastRow()<2) continue; let {m}=colMap_(sh); if(!m['id']) continue;
     let mk=montoKey_(m);
     if(!mk){ sh.getRange(1,sh.getLastColumn()+1).setValue(MONTO_DEFAULT); mk=MONTO_DEFAULT; m=colMap_(sh).m; }
-    const mc=m[mk];
+    let pk=productoKey_(m);
+    if(!pk){ sh.getRange(1,sh.getLastColumn()+1).setValue(PRODUCTO_DEFAULT); pk=PRODUCTO_DEFAULT; m=colMap_(sh).m; }
+    const mc=m[mk], pc=m[pk];
     const ids=sh.getRange(2,m['id'],Math.max(1,sh.getLastRow()-1),1).getValues();
     for(let i=0;i<ids.length;i++){
       if(String(ids[i][0])===String(id)){
         const row=i+2;
         sh.getRange(row,mc).setValue(v);
+        if(pc) sh.getRange(row,pc).setValue(v>0?prod:'');   // qué producto se vendió (vacío si se borra el monto)
         // registrar una venta implica que el lead se convirtió: se sube el estado solo
         const sk=statusKey_(m);
         if(v>0 && sk) sh.getRange(row,m[sk]).setValue('converted');
@@ -101,7 +123,7 @@ function setMonto_(id,monto){
           const res=sendCapi_('converted',{lead_id:g('id'),email:g('email'),phone:g('phone_number'),monto:v});
           capi='converted $'+v+(res.ok?' - enviado a Meta':' - error '+res.code);
         }
-        return {ok:true,monto:v,status:v>0?'converted':undefined,capi:capi};
+        return {ok:true,monto:v,producto:v>0?prod:'',status:v>0?'converted':undefined,capi:capi};
       }
     }
   }
@@ -211,6 +233,7 @@ function getMetrics_(){
 
 function sendCapi_(eventName,lead){
   const token=META_TOKEN(); if(!token) return {ok:false,code:'sin_token'};
+  eventName=metaEvent_(eventName);   // etapa interna -> nombre que ve Meta
   const ud={}; const lid=String(lead.lead_id||'').replace(/[^0-9]/g,''); if(lid) ud.lead_id=Number(lid);
   if(lead.email) ud.em=[sha256_(String(lead.email).trim().toLowerCase())];
   if(lead.phone){ const p=String(lead.phone).replace(/[^0-9]/g,''); if(p) ud.ph=[sha256_(p)]; }
