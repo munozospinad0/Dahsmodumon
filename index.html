@@ -196,6 +196,10 @@
   .qk.big{border-color:#FE881C;border-width:2px;background:#fff8f0}
   .qk.big b{color:#FE881C;font-size:2.1rem}
   .qk.big small{color:#b45309}
+  .qk.hint{max-width:640px;border-style:dashed}
+  .qk.hint>b{font-size:1.4rem;color:#c9c2e8}
+  .qk.hint small{color:#6b6592;line-height:1.5;margin-top:4px}
+  .qk.hint small b{font-size:inherit;color:var(--ink);display:inline}
   .qarrow{align-self:center;font-size:1.5rem;font-weight:900;color:#c9c2e8}
   .qalert{display:none}
   .qalert.on{display:block;background:#fff4f4;border:1px solid #f3c4c4;border-left:4px solid var(--disqualified);
@@ -517,6 +521,9 @@
     all.forEach(l=>{ const k=String(l.anuncio||'').trim(); if(!k) return;
       const e=m[k]||(m[k]={n:0,q:0,d:0});
       e.n++; if(l.status==='qualified'||l.status==='converted') e.q++; if(l.status==='disqualified') e.d++; });
+    // Si el equipo todavía no marca "calificado", esta vista no puede decir nada:
+    // mostrar ceros en rojo por todos lados haría parecer que la cuenta va mal.
+    window.__hasQ=all.some(l=>l.status==='qualified'||l.status==='converted');
     window.LEADQ=m; paintAds(); paintQualityKpi(all);
   }
   function paintAds(){
@@ -525,7 +532,7 @@
     host.innerHTML=rows.length?rows.map(a=>{
       const k=kindOf(a.camp), q=Q?(Q[a.name]||{n:0,q:0}):null;
       let cal='<td class="r num">—</td><td class="r num">—</td>';
-      if(q&&q.n){
+      if(q&&q.n&&window.__hasQ){
         const pct=q.q/q.n*100;
         const cls=q.q===0?'qbad':(pct>=15?'qgood':(pct>=5?'qmid':'qbad'));
         cal='<td class="r num '+cls+'">'+q.q+' <small>('+pct.toFixed(0)+'%)</small></td>'+
@@ -546,6 +553,15 @@
     const q=all.filter(l=>l.status==='qualified'||l.status==='converted').length;
     const n=all.length||1;
     const box=document.getElementById('qualityBox'); if(!box) return;
+    const al0=document.getElementById('qualityAlert');
+    if(!window.__hasQ){
+      box.innerHTML='<div class="qk hint"><span class="ql">Costo por lead calificado</span>'+
+        '<b>—</b><small>Todavía nadie marca leads como <b>calificado</b> en el embudo. '+
+        'En cuanto el equipo empiece a marcarlos, aquí aparece cuánto cuesta de verdad un lead que sirve, '+
+        'y qué anuncio los trae.</small></div>';
+      if(al0){ al0.className='qalert'; al0.innerHTML=''; }
+      return;
+    }
     const cpq=q?money(gasto/q):'—';
     const cpl=money(gasto/n);
     box.innerHTML=
