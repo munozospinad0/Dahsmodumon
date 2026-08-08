@@ -147,10 +147,17 @@
   .row{display:flex;align-items:center;gap:10px;margin-top:11px;font-size:.9rem;color:#3d3963}
   .row svg{width:16px;height:16px;flex:none;stroke:var(--vio)}
   .row a{color:#3d3963;text-decoration:none;font-weight:600}.row a:hover{color:var(--vio)}
-  .tags{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}
-  .tag{font-size:.7rem;font-weight:700;background:var(--pink);color:var(--vio);padding:5px 12px;border-radius:20px}
-  .tag.camp{background:#eef1fb;color:#4b4b8a}
-  .foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+  .tags{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px;min-width:0}
+  /* los nombres de anuncio son largos (VID_0107_Showcase_B2C_V1) y desbordaban la tarjeta */
+  .tag{font-size:.7rem;font-weight:700;background:var(--pink);color:var(--vio);padding:5px 12px;border-radius:20px;
+    max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* OJO: no usar la clase "camp" aquí — es la de las tarjetas de campaña, que traen
+     un ::before con una barra violeta que se pintaba encima de la etiqueta. */
+  .tag.adtag{background:#eef1fb;color:#4b4b8a}
+  /* El pie lleva 4 cosas (estado, venta, aviso de guardado, saludo) y la tarjeta
+     mide ~300px: sin wrap el último botón se salía del borde. */
+  .foot{display:flex;align-items:center;gap:10px;row-gap:9px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+  .foot>*{min-width:0}
   select.est{appearance:none;border:0;border-radius:12px;padding:10px 34px 10px 16px;font-weight:800;font-size:.9rem;cursor:pointer;color:#fff;text-transform:capitalize;font-family:inherit;background-repeat:no-repeat;background-position:right 11px center;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white'><path d='M2 4l4 4 4-4z'/></svg>");box-shadow:0 5px 14px rgba(0,0,0,.15)}
   .est[data-e=created]{background-color:var(--created)}.est[data-e=contacted]{background-color:var(--contacted)}.est[data-e=qualified]{background-color:var(--qualified)}.est[data-e=converted]{background-color:var(--converted)}.est[data-e=disqualified]{background-color:var(--disqualified)}
   .save{font-size:.72rem;font-weight:700;color:var(--ink);opacity:0;transition:.3s}.save.show{opacity:1}.save.ok{color:var(--converted)}.save.err{color:var(--disqualified)}
@@ -227,9 +234,10 @@
   .vta.on{border-color:#16a34a;background:#f2fbf6}
   .vta.on i,.vta.on input{color:#16a34a}
   /* Registrar venta — claro para el vendedor: botón cuando no hay venta, pill verde cuando ya vendió */
-  .vsell{position:relative;display:inline-flex}
+  .vsell{position:relative;display:inline-flex;max-width:100%;min-width:0}
   .vsell-t{border:1px dashed #cfc7ea;background:#faf8ff;color:#6f66a0;font-weight:700;font-size:.8rem;
-    padding:9px 14px;border-radius:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:.15s}
+    padding:9px 14px;border-radius:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:.15s;
+    max-width:100%;overflow:hidden;text-overflow:ellipsis}
   .vsell-t:hover{border-color:var(--vio2);color:var(--vio);background:#f3efff}
   .vsell.has .vsell-t{border:1px solid #9be0bb;border-style:solid;background:#f2fbf6;color:#137a45}
   .vsell.has .vsell-t b{color:#16a34a}
@@ -356,7 +364,8 @@
     .tsw:after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 2px 5px rgba(0,0,0,.2)}
     .watoggle input:checked+.tsw{background:var(--converted)}
     .watoggle input:checked+.tsw:after{transform:translateX(20px)}
-    .wabtn{border:0;background:var(--converted);color:#fff;padding:8px 12px;border-radius:10px;font-size:.75rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;margin-left:8px;transition:.2s;white-space:nowrap}
+    /* margin-left:auto lo manda a la derecha si cabe, y lo deja envolver si no */
+    .wabtn{border:0;background:var(--converted);color:#fff;padding:8px 12px;border-radius:10px;font-size:.75rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;margin-left:auto;transition:.2s;white-space:nowrap;flex:none}
     .wabtn:hover{filter:brightness(1.08)}.wabtn:disabled{opacity:.6;cursor:default}
     .wabtn svg{width:13px;height:13px;stroke:#fff;fill:none}
     </style>
@@ -711,11 +720,11 @@
       +'<div class="lhead"><div class="av">'+esc(ini)+'</div><div><h3>'+esc(nombre)+'</h3><div class="meta">'+esc(l.fecha||'')+'</div></div></div>'
       +(l.correo?'<div class="row">'+IC.mail+'<a href="mailto:'+esc(l.correo)+'">'+esc(l.correo)+'</a></div>':'')
       +(l.celular?'<div class="row">'+IC.phone+'<a href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+esc(l.celular)+'</a></div>':'')
-      +'<div class="tags">'+(l.empresa?'<span class="tag">'+esc(l.empresa)+'</span>':'')+(l.extra?'<span class="tag">'+esc(l.extra)+'</span>':'')+(l.anuncio?'<span class="tag camp">'+esc(l.anuncio)+'</span>':'')+'</div>'
+      +'<div class="tags">'+(l.empresa?'<span class="tag">'+esc(l.empresa)+'</span>':'')+(l.extra?'<span class="tag">'+esc(l.extra)+'</span>':'')+(l.anuncio?'<span class="tag adtag">'+esc(l.anuncio)+'</span>':'')+'</div>'
       +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select>'
       +'<span class="vsell'+(Number(l.monto)>0?' has':'')+'" id="vw-'+esc(l.id)+'">'
         +'<button type="button" class="vsell-t" onclick="sellOpen(\''+esc(l.id)+'\')" title="Registra cuánto y qué compró este lead">'
-          +(Number(l.monto)>0?('💰 Vendió <b>'+money(l.monto)+'</b>'+(l.producto?(' · '+esc(l.producto)):'')):'+ Registrar venta')+'</button>'
+          +(Number(l.monto)>0?('Vendió <b>'+money(l.monto)+'</b>'+(l.producto?(' · '+esc(l.producto)):'')):'+ Registrar venta')+'</button>'
         +'<div class="vsell-pop">'
           +'<div class="vsp-r"><span>Monto de la venta</span><div class="vsp-in"><i>$</i><input type="number" min="0" step="1" placeholder="0" id="vm-'+esc(l.id)+'" value="'+(Number(l.monto)>0?Number(l.monto):'')+'" onkeydown="if(event.key===\'Enter\')venta(\''+esc(l.id)+'\')"></div></div>'
           +'<div class="vsp-r"><span>¿Qué compró?</span><input class="vsp-txt" type="text" id="vp-'+esc(l.id)+'" placeholder="Cocina, clóset, mueble…" value="'+esc(l.producto||'')+'" onkeydown="if(event.key===\'Enter\')venta(\''+esc(l.id)+'\')"></div>'
@@ -744,7 +753,7 @@
     const prevM=l?l.monto:0, prevS=l?l.status:'created', prevP=l?l.producto:'';
     if(l){ l.monto=v; l.producto=prod; if(v>0) l.status='converted'; }
     if(w){ w.classList.remove('edit'); w.classList.toggle('has',v>0); }
-    if(t) t.innerHTML=v>0?('💰 Vendió <b>'+money(v)+'</b>'+(prod?(' · '+esc(prod)):'')):'+ Registrar venta';
+    if(t) t.innerHTML=v>0?('Vendió <b>'+money(v)+'</b>'+(prod?(' · '+esc(prod)):'')):'+ Registrar venta';
     if(v>0) pendingStatus[String(id)]='converted';
     sv.className='save show'; sv.textContent='Guardando…';
     renderFunnel();
@@ -758,7 +767,7 @@
       if(l){ l.monto=prevM; l.status=prevS; l.producto=prevP; }
       delete pendingStatus[String(id)];
       if(w) w.classList.toggle('has',prevM>0);
-      if(t) t.innerHTML=prevM>0?('💰 Vendió <b>'+money(prevM)+'</b>'+(prevP?(' · '+esc(prevP)):'')):'+ Registrar venta';
+      if(t) t.innerHTML=prevM>0?('Vendió <b>'+money(prevM)+'</b>'+(prevP?(' · '+esc(prevP)):'')):'+ Registrar venta';
       sv.className='save show err'; sv.textContent='No se guardó: '+err.message;
       renderFunnel();
     });
