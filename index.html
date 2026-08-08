@@ -188,28 +188,44 @@
   .lgbtn:hover{transform:translateY(-1px)}
   .lgerr{font-size:.76rem;color:var(--disqualified);font-weight:700;margin-top:12px;min-height:1em}
   /* ---- calidad de lead ---- */
-  .qbox{display:flex;align-items:stretch;gap:14px;flex-wrap:wrap;margin:4px 0 12px}
-  .qk{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 18px;min-width:170px}
-  .qk .ql{display:block;font-size:.64rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#8a82a8}
-  .qk b{display:block;font-size:1.7rem;font-weight:900;color:#8a82a8;line-height:1.15;margin-top:2px}
-  .qk small{display:block;font-size:.7rem;color:#8a82a8;font-weight:600}
-  .qk.big{border-color:#FE881C;border-width:2px;background:#fff8f0}
-  .qk.big b{color:#FE881C;font-size:2.1rem}
-  .qk.big small{color:#b45309}
-  .qk.hint{max-width:640px;border-style:dashed}
-  .qk.hint>b{font-size:1.4rem;color:#c9c2e8}
-  .qk.hint small{color:#6b6592;line-height:1.5;margin-top:4px}
+  .qbox{display:flex;align-items:stretch;gap:12px;flex-wrap:wrap;margin:4px 0 12px}
+  .qc{flex:1;min-width:172px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 16px}
+  .qc .ql{display:block;font-size:.63rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#8a82a8}
+  .qc b{display:block;font-size:1.72rem;font-weight:900;color:var(--ink);line-height:1.15;margin-top:2px}
+  .qc small{display:block;font-size:.7rem;color:#8a82a8;font-weight:600;margin-top:2px;line-height:1.35}
+  .qc.hot{border-color:#f7c78a;background:#fff8f0}.qc.hot b{color:#FE881C}.qc.hot small{color:#b45309}
+  .qc.good{border-color:#b8e6cd;background:#f2fbf6}.qc.good b{color:#16a34a}.qc.good small{color:#137a45}
+  .qc.opp{border-color:#cec2ff;background:#f6f3ff}.qc.opp b{color:#5B3FE0}.qc.opp small{color:#4a3a9e}
+  .qk.hint{max-width:640px;border:1px dashed var(--line);border-radius:14px;padding:12px 18px;background:#fff}
+  .qk.hint .ql{display:block;font-size:.63rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#8a82a8}
+  .qk.hint>b{display:block;font-size:1.4rem;color:#c9c2e8}
+  .qk.hint small{display:block;color:#6b6592;line-height:1.5;margin-top:4px;font-size:.78rem}
   .qk.hint small b{font-size:inherit;color:var(--ink);display:inline}
-  .qarrow{align-self:center;font-size:1.5rem;font-weight:900;color:#c9c2e8}
+  /* la nota es una oportunidad, no un regaño: morado ECUS, no rojo de error */
   .qalert{display:none}
-  .qalert.on{display:block;background:#fff4f4;border:1px solid #f3c4c4;border-left:4px solid var(--disqualified);
-    border-radius:12px;padding:12px 16px;font-size:.86rem;color:#7f2323;line-height:1.5;margin-bottom:14px}
-  .qalert b{color:#5c1515}
+  .qalert.on{display:block;background:#f6f3ff;border:1px solid #d9cffb;border-left:4px solid #5B3FE0;
+    border-radius:12px;padding:13px 17px;font-size:.86rem;color:#3f3570;line-height:1.55;margin-bottom:14px}
+  .qalert b{color:#241b52}
+  .qsup{display:block;font-size:.72rem;color:#8a82a8;font-weight:600;margin-top:5px}
   th.qh{background:#fff8f0;color:#b45309}
   td.qgood{color:#16a34a;font-weight:800}
   td.qmid{color:#FE881C;font-weight:800}
-  td.qbad{color:#dc2626;font-weight:800}
-  td.qgood small,td.qmid small,td.qbad small{font-weight:700;opacity:.75}
+  td.qlow{color:#6b6592;font-weight:800}
+  td.qzero{color:#a8a2c0;font-weight:700}
+  td.qgood small,td.qmid small,td.qlow small,td.qzero small{font-weight:700;opacity:.75}
+  /* Vendido/Retorno solo aparecen cuando ya hay ventas registradas */
+  #adsTable .qv{display:none}
+  #adsTable.hasrev .qv{display:table-cell}
+  /* campo para registrar cuánto se vendió, en la tarjeta del lead */
+  .vta{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--line);border-radius:10px;
+    padding:5px 9px;background:#fff;transition:.15s}
+  .vta i{font-style:normal;font-weight:800;color:#8a82a8;font-size:.82rem}
+  .vta input{width:66px;border:0;background:none;outline:none;font:inherit;font-size:.82rem;font-weight:800;color:var(--ink)}
+  .vta input::-webkit-outer-spin-button,.vta input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .vta input[type=number]{-moz-appearance:textfield}
+  .vta:focus-within{border-color:#5B3FE0}
+  .vta.on{border-color:#16a34a;background:#f2fbf6}
+  .vta.on i,.vta.on input{color:#16a34a}
   .lgfoot{font-size:.62rem;color:#9a94bd;margin-top:18px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
   .iconbtn{border:0;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;width:38px;height:38px;border-radius:12px;cursor:pointer;display:grid;place-items:center;transition:.2s}
   .iconbtn:hover{background:rgba(255,255,255,.22)}
@@ -269,7 +285,7 @@
     <div class="qbox" id="qualityBox"></div>
     <div class="qalert" id="qualityAlert"></div>
     <div class="tcard">
-      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r qh">Califican</th><th class="r qh">CPL calif.</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="10"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
+      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r qh">Califican</th><th class="r qh">CPL calif.</th><th class="r qh qv">Vendido</th><th class="r qh qv">Retorno</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="12"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
       <div class="pvhint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Toca un anuncio para ver su preview real de Facebook</div>
     </div>
   </section>
@@ -519,8 +535,10 @@
   function buildLeadQ(all){
     const m={};
     all.forEach(l=>{ const k=String(l.anuncio||'').trim(); if(!k) return;
-      const e=m[k]||(m[k]={n:0,q:0,d:0});
-      e.n++; if(l.status==='qualified'||l.status==='converted') e.q++; if(l.status==='disqualified') e.d++; });
+      const e=m[k]||(m[k]={n:0,q:0,d:0,v:0,rev:0});
+      e.n++; if(l.status==='qualified'||l.status==='converted') e.q++; if(l.status==='disqualified') e.d++;
+      const mt=Number(l.monto)||0; if(mt>0){ e.v++; e.rev+=mt; } });
+    window.__hasRev=all.some(l=>Number(l.monto)>0);
     // Si el equipo todavía no marca "calificado", esta vista no puede decir nada:
     // mostrar ceros en rojo por todos lados haría parecer que la cuenta va mal.
     window.__hasQ=all.some(l=>l.status==='qualified'||l.status==='converted');
@@ -529,22 +547,32 @@
   function paintAds(){
     const rows=window.__adRows; const host=document.querySelector('#adsTable tbody'); if(!rows||!host) return;
     const Q=window.LEADQ, mx=rows.length?rows[0].spend||1:1;
+    const tbl=document.getElementById('adsTable');
+    if(tbl) tbl.classList.toggle('hasrev', !!window.__hasRev);
     host.innerHTML=rows.length?rows.map(a=>{
       const k=kindOf(a.camp), q=Q?(Q[a.name]||{n:0,q:0}):null;
       let cal='<td class="r num">—</td><td class="r num">—</td>';
       if(q&&q.n&&window.__hasQ){
         const pct=q.q/q.n*100;
-        const cls=q.q===0?'qbad':(pct>=15?'qgood':(pct>=5?'qmid':'qbad'));
+        // sin rojo: el cero es dato neutro, no una falta. Se premia lo que funciona.
+        const cls=q.q===0?'qzero':(pct>=15?'qgood':(pct>=5?'qmid':'qlow'));
         cal='<td class="r num '+cls+'">'+q.q+' <small>('+pct.toFixed(0)+'%)</small></td>'+
             '<td class="r num '+cls+'">'+(q.q?money(a.spend/q.q):'nunca')+'</td>';
       }
+      /* Ingresos. Las celdas se emiten siempre (si no, cabecera y filas se
+         desalinean) y se ocultan por CSS mientras nadie haya registrado ventas. */
+      const rev=q?q.rev:0, nv=q?q.v:0;
+      const roas=rev&&a.spend?rev/a.spend:0;
+      const vta='<td class="r num qv '+(rev?'qgood':'qzero')+'">'+(rev?money(rev):'—')+
+          (nv?' <small>('+nv+')</small>':'')+'</td>'+
+          '<td class="r num qv '+(roas>=3?'qgood':(roas>0?'qmid':'qzero'))+'">'+(roas?roas.toFixed(1)+'x':'—')+'</td>';
       return '<tr class="clk" onclick="openPv(\''+esc(a.id)+'\',\''+esc(a.name).replace(/'/g,'&#39;')+'\')"><td><div class="an" title="'+esc(a.name)+'">'+esc(a.name)+'</div><div class="bar"><i style="width:'+Math.max(2,Math.round(a.spend/mx*100))+'%"></i></div></td>'
       +'<td><span class="cchip '+k[0]+'">'+esc(k[1])+'</span></td>'
       +'<td class="r num">'+money(a.spend)+'</td><td class="r num'+(a.leads?' hot':'')+'">'+intf(a.leads)+'</td><td class="r num">'+(a.leads?money(a.spend/a.leads):'—')+'</td>'
-      +cal
+      +cal+vta
       +'<td class="r num">'+a.ctr.toFixed(2)+'%</td><td class="r num">'+intf(a.imp)+'</td>'
       +'<td class="r"><button class="seebtn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Ver</button></td></tr>';}).join('')
-      :'<tr><td colspan="10"><div class="state" style="padding:18px">Sin entregas aún en este rango.</div></td></tr>';
+      :'<tr><td colspan="12"><div class="state" style="padding:18px">Sin entregas aún en este rango.</div></td></tr>';
   }
   /* KPI de calidad + aviso cuando un anuncio se come el presupuesto sin calificar */
   function paintQualityKpi(all){
@@ -564,21 +592,50 @@
     }
     const cpq=q?money(gasto/q):'—';
     const cpl=money(gasto/n);
-    box.innerHTML=
-      '<div class="qk"><span class="ql">Costo x lead</span><b>'+cpl+'</b><small>lo que ves hoy</small></div>'+
-      '<div class="qarrow">→</div>'+
-      '<div class="qk big"><span class="ql">Costo x lead CALIFICADO</span><b>'+cpq+'</b>'+
-        '<small>'+q+' de '+n+' ('+(q/n*100).toFixed(1)+'%) sirvieron</small></div>';
     const Q=window.LEADQ||{};
-    const malo=rows.filter(a=>a.spend/gasto>0.30).map(a=>({a,q:Q[a.name]||{n:0,q:0}}))
-                   .filter(x=>x.q.n>=20&&x.q.q/x.q.n<0.02)[0];
+    // El mejor: menor costo por lead calificado (mínimo 2, para que no sea casualidad).
+    const conQ=rows.map(a=>({a,q:Q[a.name]||{n:0,q:0}})).filter(x=>x.q.q>=2)
+                   .sort((x,y)=>(x.a.spend/x.q.q)-(y.a.spend/y.q.q));
+    const mejor=conQ[0];
+    // El que más presupuesto consume calificando poco: ahí está el margen de mejora.
+    const flojo=rows.filter(a=>a.spend/gasto>0.25).map(a=>({a,q:Q[a.name]||{n:0,q:0}}))
+                    .filter(x=>x.q.n>=20&&x.q.q/x.q.n<0.03)[0];
+    let pot=null;
+    if(mejor&&flojo){
+      const cpqM=mejor.a.spend/mejor.q.q;
+      // Supuesto conservador: al escalar, el mejor rinde la MITAD de bien que hoy.
+      const gana=Math.floor(flojo.a.spend/(cpqM*2))-flojo.q.q;
+      if(gana>0) pot={gana:gana,cpqM:cpqM};
+    }
+    // ingresos registrados por los vendedores
+    const rev=all.reduce((s,l)=>s+(Number(l.monto)||0),0);
+    const ventas=all.filter(l=>Number(l.monto)>0).length;
+    box.innerHTML=
+      '<div class="qc"><span class="ql">Leads calificados</span><b>'+q+'</b>'+
+        '<small>'+(q/n*100).toFixed(1)+'% de '+n+' recibidos</small></div>'+
+      '<div class="qc hot"><span class="ql">Costo x lead calificado</span><b>'+cpq+'</b>'+
+        '<small>el CPL de '+cpl+' solo mide el formulario</small></div>'+
+      (rev>0?
+        '<div class="qc good"><span class="ql">Vendido</span><b>'+money(rev)+'</b>'+
+          '<small>'+ventas+' venta'+(ventas===1?'':'s')+' · retorno '+(rev/gasto).toFixed(1)+'x</small></div>'+
+        '<div class="qc"><span class="ql">Costo por venta</span><b>'+money(gasto/ventas)+'</b>'+
+          '<small>ticket promedio '+money(rev/ventas)+'</small></div>'
+      :'')+
+      (mejor?'<div class="qc good"><span class="ql">Tu mejor anuncio</span><b>'+money(mejor.a.spend/mejor.q.q)+'</b>'+
+        '<small>'+esc(mejor.a.name.length>26?mejor.a.name.slice(0,25)+'…':mejor.a.name)+' · califica '+
+        (mejor.q.q/mejor.q.n*100).toFixed(0)+'%</small></div>':'')+
+      (pot?'<div class="qc opp"><span class="ql">Margen de mejora</span><b>+'+pot.gana+'</b>'+
+        '<small>leads calificados con la misma inversión</small></div>':'');
+
     const al=document.getElementById('qualityAlert'); if(!al) return;
-    if(malo){
-      const pctG=(malo.a.spend/gasto*100).toFixed(0), pctQ=(malo.q.q/malo.q.n*100).toFixed(1);
+    if(mejor&&flojo&&pot){
       al.className='qalert on';
-      al.innerHTML='<b>Revisa «'+esc(malo.a.name)+'»</b> — se lleva el '+pctG+'% del presupuesto y solo '+
-        pctQ+'% de sus '+malo.q.n+' leads califican ('+money(malo.a.spend/Math.max(1,malo.q.q))+' por lead útil). '+
-        'Es el CPL más bajo de la cuenta y el lead más caro de verdad.';
+      al.innerHTML='<b>Dónde está la oportunidad.</b> «'+esc(mejor.a.name)+'» califica el '+
+        (mejor.q.q/mejor.q.n*100).toFixed(0)+'% de sus leads y hoy solo tiene '+money(mejor.a.spend)+'. '+
+        '«'+esc(flojo.a.name)+'» tiene el '+(flojo.a.spend/gasto*100).toFixed(0)+'% del presupuesto y califica el '+
+        (flojo.q.q/flojo.q.n*100).toFixed(1)+'%. Moviendo presupuesto del segundo al primero, <b>con la misma inversión '+
+        'pasarías de '+q+' a unos '+(q+pot.gana)+' leads calificados</b>.'+
+        '<span class="qsup">Estimado conservador: asume que el mejor rinde la mitad de bien al escalar.</span>';
     } else { al.className='qalert'; al.innerHTML=''; }
   }
 
@@ -626,9 +683,39 @@
       +(l.correo?'<div class="row">'+IC.mail+'<a href="mailto:'+esc(l.correo)+'">'+esc(l.correo)+'</a></div>':'')
       +(l.celular?'<div class="row">'+IC.phone+'<a href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+esc(l.celular)+'</a></div>':'')
       +'<div class="tags">'+(l.empresa?'<span class="tag">'+esc(l.empresa)+'</span>':'')+(l.extra?'<span class="tag">'+esc(l.extra)+'</span>':'')+(l.anuncio?'<span class="tag camp">'+esc(l.anuncio)+'</span>':'')+'</div>'
-      +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select><span class="save" id="sv-'+esc(l.id)+'"></span>'+(l.celular?'<button class="wabtn" onclick="sendInit(this,\''+esc(l.id)+'\')" title="Enviar saludo inicial por WhatsApp">'+IC.send+'Saludo</button>':'')+'</div>'
+      +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select>'
+      +'<label class="vta'+(Number(l.monto)>0?' on':'')+'" title="Cuánto se le vendió"><i>$</i>'
+        +'<input type="number" min="0" step="1" placeholder="vendió" value="'+(Number(l.monto)>0?Number(l.monto):'')+'"'
+        +' onchange="venta(this,\''+esc(l.id)+'\')" onkeydown="if(event.key===\'Enter\')this.blur()"></label>'
+      +'<span class="save" id="sv-'+esc(l.id)+'"></span>'+(l.celular?'<button class="wabtn" onclick="sendInit(this,\''+esc(l.id)+'\')" title="Enviar saludo inicial por WhatsApp">'+IC.send+'Saludo</button>':'')+'</div>'
       +(l.capi?'<div class="capi">'+IC.send+esc(l.capi)+'</div>':'')
       +'</div>';
+  }
+
+  /* Registrar cuánto se vendió. Al guardar un monto el lead pasa a "converted"
+     (vender es la conversión), así que se refresca embudo y calidad. */
+  function venta(inp,id){
+    const v=Number(inp.value)||0, sv=document.getElementById('sv-'+id);
+    const l=(cache[tipo]||[]).find(x=>String(x.id)===String(id));
+    const prevM=l?l.monto:0, prevS=l?l.status:'created';
+    if(l){ l.monto=v; if(v>0) l.status='converted'; }
+    inp.closest('.vta').classList.toggle('on',v>0);
+    if(v>0) pendingStatus[String(id)]='converted';
+    sv.className='save show'; sv.textContent='Guardando…';
+    renderFunnel();
+    gas({action:'venta',id:id,monto:String(v)}).then(r=>{
+      if(r.ok){
+        sv.className='save show ok'; sv.textContent=v>0?'Venta guardada':'Monto borrado';
+        setTimeout(()=>sv.classList.remove('show'),2800);
+        buildLeadQ([].concat(cache.b2c||[],cache.b2b||[])); render();
+      } else throw new Error(r.error||'error');
+    }).catch(err=>{
+      if(l){ l.monto=prevM; l.status=prevS; }
+      delete pendingStatus[String(id)];
+      inp.value=prevM>0?prevM:''; inp.closest('.vta').classList.toggle('on',prevM>0);
+      sv.className='save show err'; sv.textContent='No se guardó: '+err.message;
+      renderFunnel();
+    });
   }
 
   function chg(sel,id){

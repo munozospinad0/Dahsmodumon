@@ -9,11 +9,14 @@ const STATUSES   = ['created','contacted','qualified','disqualified','converted'
 const CAPI_STAGES= ['contacted','qualified','disqualified','converted'];
 const STATUS_ALIASES = ['lead_status','status','estado','lead status','lead_estado','lead status meta'];
 const STATUS_DEFAULT = 'lead_status';
+const MONTO_DEFAULT  = 'monto_venta';   // cuánto se vendió; lo escribe el vendedor desde el dashboard
+const MONTO_ALIASES  = ['monto_venta','monto','valor_venta','venta','valor','importe','total'];
 
 function META_TOKEN(){ return PropertiesService.getScriptProperties().getProperty('META_TOKEN') || ''; }
 function colMap_(sh){ const h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(x=>String(x).trim()); const m={}; h.forEach((x,i)=>m[x]=i+1); return {h,m}; }
 function statusKey_(m){ const keys=Object.keys(m); for(const a of STATUS_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function isLeadSheet_(m){ return !!(m['id']||m['email']||m['first_name']); }
+function montoKey_(m){ const keys=Object.keys(m); for(const a of MONTO_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function clean_(v){ return String(v==null?'':v).replace(/^[a-zA-Z]+:\s*/,'').trim(); }
 function isTest_(fn,ln,email){ return /test lead|dummy data/i.test(String(fn)+String(ln)+String(email)) || String(email).toLowerCase()==='test@meta.com'; }
 
@@ -42,6 +45,7 @@ function doGet(e){
   if(p.key!==KEY) return out_(p.callback,{error:'unauthorized'});
   try{
     if(p.action==='update')  return out_(p.callback, updateLead_(p.id,p.status));
+    if(p.action==='venta')   return out_(p.callback, setMonto_(p.id,p.monto));
     if(p.action==='config')  return out_(p.callback, {autogreet: getConfig_('autogreet')||'on'});
     if(p.action==='setconfig') return out_(p.callback, setConfig_(p.k,p.v));
     return out_(p.callback, getLeads_());
@@ -52,7 +56,7 @@ function getLeads_(){
   const ss=SpreadsheetApp.getActiveSpreadsheet(); const rows=[];
   ss.getSheets().forEach(sh=>{
     if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
-    const sck=statusKey_(m); const data=sh.getDataRange().getValues();
+    const sck=statusKey_(m); const mnk=montoKey_(m); const data=sh.getDataRange().getValues();
     const g=(row,n)=> m[n]?row[m[n]-1]:'';
     for(let r=1;r<data.length;r++){
       const row=data[r]; const id=g(row,'id'), email=g(row,'email'), fn=g(row,'first_name'), ln=g(row,'last_name');
@@ -64,10 +68,37 @@ function getLeads_(){
         nombre:fn, apellido:ln, correo:email, celular:clean_(g(row,'phone_number')),
         empresa:g(row,'company_name'), extra:g(row,'tipo_proyecto')||g(row,'espacio')||'',
         campana:g(row,'campaign_name'), anuncio:g(row,'ad_name'),
+        monto: Number(String(mnk?row[m[mnk]-1]:'').replace(/[^0-9.\-]/g,''))||0,
         status: STATUSES.indexOf(st)>=0?st:'created', tipo:tipoFrom_(row,m,sh.getName()) });
     }
   });
   return {rows:rows,statuses:STATUSES,ts:new Date().toLocaleString('es-PA')};
+}
+
+// Registrar CUÁNTO se vendió a ese lead; escribe en la columna 'monto_venta' (la crea si falta).
+// Es lo que permite saber qué anuncio trajo dinero, no solo cuál trajo formularios.
+function setMonto_(id,monto){
+  const v=Number(String(monto==null?'':monto).replace(/[^0-9.\-]/g,''));
+  if(!isFinite(v)||v<0) return {ok:false,error:'monto invalido'};
+  const ss=SpreadsheetApp.getActiveSpreadsheet();
+  for(const sh of ss.getSheets()){
+    if(sh.getLastRow()<2) continue; let {m}=colMap_(sh); if(!m['id']) continue;
+    let mk=montoKey_(m);
+    if(!mk){ sh.getRange(1,sh.getLastColumn()+1).setValue(MONTO_DEFAULT); mk=MONTO_DEFAULT; m=colMap_(sh).m; }
+    const mc=m[mk];
+    const ids=sh.getRange(2,m['id'],Math.max(1,sh.getLastRow()-1),1).getValues();
+    for(let i=0;i<ids.length;i++){
+      if(String(ids[i][0])===String(id)){
+        const row=i+2;
+        sh.getRange(row,mc).setValue(v);
+        // registrar una venta implica que el lead se convirtió: se sube el estado solo
+        const sk=statusKey_(m);
+        if(v>0 && sk) sh.getRange(row,m[sk]).setValue('converted');
+        return {ok:true,monto:v,status:v>0?'converted':undefined};
+      }
+    }
+  }
+  return {ok:false,error:'lead no encontrado'};
 }
 
 function updateLead_(id,status){

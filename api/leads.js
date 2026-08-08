@@ -12,9 +12,10 @@ module.exports = async function handler(req, res) {
   if (PASSWORD && provided !== PASSWORD) return res.status(401).json({ error: 'unauthorized' });
   if (!GAS_URL || !GAS_KEY) return res.status(500).json({ error: 'Falta APPS_SCRIPT_URL / APPS_SCRIPT_KEY en Vercel' });
 
-  const { action = 'leads', id = '', status = '', k = '', v = '' } = req.query;
+  const { action = 'leads', id = '', status = '', k = '', v = '', monto = '' } = req.query;
   const params = new URLSearchParams({ key: GAS_KEY });
   if (action === 'update') { params.set('action', 'update'); params.set('id', id); params.set('status', status); }
+  else if (action === 'venta') { params.set('action', 'venta'); params.set('id', id); params.set('monto', monto); }
   else if (action === 'setconfig') { params.set('action', 'setconfig'); params.set('k', k); params.set('v', v); }
   else if (action === 'config') { params.set('action', 'config'); }
 
