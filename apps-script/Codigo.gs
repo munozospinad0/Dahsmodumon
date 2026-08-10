@@ -32,6 +32,18 @@ function META_TOKEN(){ return PropertiesService.getScriptProperties().getPropert
 function colMap_(sh){ const h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(x=>String(x).trim()); const m={}; h.forEach((x,i)=>m[x]=i+1); return {h,m}; }
 function statusKey_(m){ const keys=Object.keys(m); for(const a of STATUS_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function isLeadSheet_(m){ return !!(m['id']||m['email']||m['first_name']); }
+/* El teléfono es lo único sin lo cual el vendedor no puede trabajar el lead, y Meta
+   le cambia el nombre al campo cada vez que se toca el formulario (en Fefa pasó: el
+   form nuevo trae "número_de_whatsapp" y el dashboard dejó de mostrarlo). Por eso no
+   se busca 'phone_number' a secas, sino cualquier columna que parezca un teléfono. */
+function phoneCol_(m){
+  const exactas=['phone_number','numero_de_whatsapp','whatsapp_number','numero_de_telefono','telefono','celular','phone'];
+  const keys=Object.keys(m);
+  for(const a of exactas){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return m[k]; }
+  const k=keys.find(x=>/whats|telef|celul|phone|movil/i.test(String(x)));
+  return k?m[k]:0;
+}
+function phoneOf_(row,m){ const c=phoneCol_(m); return c?row[c-1]:''; }
 function montoKey_(m){ const keys=Object.keys(m); for(const a of MONTO_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function productoKey_(m){ const keys=Object.keys(m); for(const a of PRODUCTO_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function clean_(v){ return String(v==null?'':v).replace(/^[a-zA-Z]+:\s*/,'').trim(); }
@@ -77,12 +89,12 @@ function getLeads_(){
     const g=(row,n)=> m[n]?row[m[n]-1]:'';
     for(let r=1;r<data.length;r++){
       const row=data[r]; const id=g(row,'id'), email=g(row,'email'), fn=g(row,'first_name'), ln=g(row,'last_name');
-      if(!id && !email && !g(row,'phone_number')) continue;
+      if(!id && !email && !phoneOf_(row,m)) continue;
       if(isTest_(fn,ln,email)) continue;
       const st=String(sck?row[m[sck]-1]:'').toLowerCase().trim();
       rows.push({ _row:r+1, id:id,
         fecha:String(g(row,'created_time')||'').slice(0,16).replace('T',' '),
-        nombre:fn, apellido:ln, correo:email, celular:clean_(g(row,'phone_number')),
+        nombre:fn, apellido:ln, correo:email, celular:clean_(phoneOf_(row,m)),
         empresa:g(row,'company_name'), extra:g(row,'tipo_proyecto')||g(row,'espacio')||'',
         campana:g(row,'campaign_name'), anuncio:g(row,'ad_name'),
         monto: Number(String(mnk?row[m[mnk]-1]:'').replace(/[^0-9.\-]/g,''))||0,
@@ -120,7 +132,7 @@ function setMonto_(id,monto,producto){
         let capi='';
         if(v>0 && DATASET_ID){
           const g=(n)=> m[n]?sh.getRange(row,m[n]).getValue():'';
-          const res=sendCapi_('converted',{lead_id:g('id'),email:g('email'),phone:g('phone_number'),monto:v});
+          const res=sendCapi_('converted',{lead_id:g('id'),email:g('email'),phone:(phoneCol_(m)?sh.getRange(row,phoneCol_(m)).getValue():''),monto:v});
           capi='converted $'+v+(res.ok?' - enviado a Meta':' - error '+res.code);
         }
         return {ok:true,monto:v,producto:v>0?prod:'',status:v>0?'converted':undefined,capi:capi};
@@ -145,7 +157,7 @@ function updateLead_(id,status){
         let capi='';
         if(CAPI_STAGES.indexOf(status)>=0){
           const full=sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0]; const gg=n=>m[n]?full[m[n]-1]:'';
-          const res=sendCapi_(status,{lead_id:gg('id'),email:gg('email'),phone:gg('phone_number')});
+          const res=sendCapi_(status,{lead_id:gg('id'),email:gg('email'),phone:(phoneCol_(nm)?sh.getRange(row,phoneCol_(nm)).getValue():'')});
           capi=status+(res.ok?' - enviado a Meta':' - error '+res.code);
         }
         return {ok:true,status:status,capi:capi};
@@ -198,7 +210,7 @@ function autoGreetNewLeads(){
       if(!seeded){ sh.getRange(rowN,gc).setValue('seed'); continue; } // 1a corrida: solo semilla, no envía
       const fn=String(g(row,'first_name')||'').trim();
       if(isTest_(fn,g(row,'last_name'),g(row,'email'))){ sh.getRange(rowN,gc).setValue('test'); continue; }
-      const phone=clean_(g(row,'phone_number'));
+      const phone=clean_(phoneOf_(row,m));
       if(!phone){ sh.getRange(rowN,gc).setValue('no-phone'); continue; }
       const res=waSendTemplate_(phone,fn.split(/\s+/)[0]);
       if(res.ok){
