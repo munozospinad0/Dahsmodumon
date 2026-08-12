@@ -695,19 +695,43 @@
   function switchTab(t){ tipo=t; document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tipo===t)); render(); }
   function setFiltro(e){ filtro=e; render(); }
 
+  /* Prepara las filas crudas: tipo, teléfono limpio, y respeta un estado que
+     acabas de marcar y el server todavía no confirma. */
+  function prepLeads(rows){
+    const all=(rows||[]).filter(l=>!isTest(l)).map(l=>Object.assign(l,{tipo:deriveTipo(l),celular:cleanPhone(l.celular)}));
+    all.forEach(l=>{ const p=pendingStatus[String(l.id)]; if(p!=null){ if(l.status===p) delete pendingStatus[String(l.id)]; else l.status=p; } });
+    return all;
+  }
+  function pintarLeads(all,ts){
+    buildLeadQ(all);
+    cache.b2c=all.filter(l=>l.tipo==='b2c'); cache.b2b=all.filter(l=>l.tipo==='b2b');
+    document.getElementById('cnt-b2c').textContent=cache.b2c.length;
+    document.getElementById('cnt-b2b').textContent=cache.b2b.length;
+    document.getElementById('upd').textContent=ts;
+    renderFunnel(); render();
+  }
+
+  /* El Apps Script de Google tarda entre 4 y 18 s de forma impredecible (medido).
+     Dejar al vendedor mirando "Cargando leads…" cada vez que entra es inaceptable,
+     así que se pinta al instante lo último que se vio y se refresca por detrás. */
   function loadLeads(){
+    if(!window.__yaPinto){
+      try{
+        const cx=localStorage.getItem('leads_cache');
+        if(cx){
+          const j=JSON.parse(cx);
+          if(j && j.rows && j.rows.length){ window.__yaPinto=true; pintarLeads(prepLeads(j.rows),'Actualizando…'); }
+        }
+      }catch(e){}
+    }
     gas({action:'leads'}).then(d=>{ loadAutoGreet();
-      const all=(d.rows||[]).filter(l=>!isTest(l)).map(l=>Object.assign(l,{tipo:deriveTipo(l),celular:cleanPhone(l.celular)}));
-      // Un refresco NO debe pisar un estado que acabas de marcar: si el server ya lo trae, se confirma; si no, se mantiene tu cambio.
-      all.forEach(l=>{ const p=pendingStatus[String(l.id)]; if(p!=null){ if(l.status===p) delete pendingStatus[String(l.id)]; else l.status=p; } });
-      buildLeadQ(all);
-      cache.b2c=all.filter(l=>l.tipo==='b2c'); cache.b2b=all.filter(l=>l.tipo==='b2b');
-      document.getElementById('cnt-b2c').textContent=cache.b2c.length;
-      document.getElementById('cnt-b2b').textContent=cache.b2b.length;
-      document.getElementById('upd').textContent='Actualizado '+(d.ts||'');
-      renderFunnel(); render();
+      window.__yaPinto=true;
+      pintarLeads(prepLeads(d.rows),'Actualizado '+(d.ts||''));
+      try{ localStorage.setItem('leads_cache',JSON.stringify({rows:d.rows,ts:d.ts})); }catch(e){}
     }).catch(err=>{
-      document.getElementById('content').innerHTML='<div class="state">No pude cargar los leads ('+esc(err.message)+').</div>';
+      // si ya había algo pintado desde la copia local, no lo borres por un fallo de red
+      if(!window.__yaPinto)
+        document.getElementById('content').innerHTML='<div class="state">No pude cargar los leads ('+esc(err.message)+').</div>';
       document.getElementById('upd').textContent='sin conexión';
     });
   }
