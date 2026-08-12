@@ -27,6 +27,13 @@ const MONTO_DEFAULT  = 'monto_venta';   // cuánto se vendió; lo escribe el ven
 const MONTO_ALIASES  = ['monto_venta','monto','valor_venta','venta','valor','importe','total'];
 const PRODUCTO_DEFAULT = 'producto_venta'; // qué producto compró; lo escribe el vendedor desde el dashboard
 const PRODUCTO_ALIASES = ['producto_venta','producto','producto_vendido','que_compro','articulo','producto_comprado'];
+// Respuestas del cliente por WhatsApp (las escribe el webhook, no una persona)
+const RESP_DEFAULT     = 'respondio';
+const RESP_ALIASES     = ['respondio','respondió','contesto','contestó','replied'];
+const RESPFEC_DEFAULT  = 'fecha_respuesta';
+const RESPFEC_ALIASES  = ['fecha_respuesta','respondio_el','fecha_de_respuesta'];
+const RESPTXT_DEFAULT  = 'ultimo_mensaje';
+const RESPTXT_ALIASES  = ['ultimo_mensaje','último_mensaje','mensaje','ultima_respuesta'];
 
 function META_TOKEN(){ return PropertiesService.getScriptProperties().getProperty('META_TOKEN') || ''; }
 function colMap_(sh){ const h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(x=>String(x).trim()); const m={}; h.forEach((x,i)=>m[x]=i+1); return {h,m}; }
@@ -44,6 +51,11 @@ function phoneCol_(m){
   return k?m[k]:0;
 }
 function phoneOf_(row,m){ const c=phoneCol_(m); return c?row[c-1]:''; }
+function keyByAliases_(m,aliases){ const keys=Object.keys(m); for(const a of aliases){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
+/* Para emparejar un número hay que quedarse con los últimos 8 dígitos: en la hoja
+   conviven "+50764660991" y "66031510", y WhatsApp manda "50764660991". Panamá usa
+   8 dígitos, así que esa es la parte que de verdad identifica a la persona. */
+function tel8_(v){ const d=String(v==null?'':v).replace(/[^0-9]/g,''); return d.length>=8?d.slice(-8):''; }
 function montoKey_(m){ const keys=Object.keys(m); for(const a of MONTO_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function productoKey_(m){ const keys=Object.keys(m); for(const a of PRODUCTO_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
 function clean_(v){ return String(v==null?'':v).replace(/^[a-zA-Z]+:\s*/,'').trim(); }
@@ -75,6 +87,7 @@ function doGet(e){
   try{
     if(p.action==='update')  return out_(p.callback, updateLead_(p.id,p.status));
     if(p.action==='venta')   return out_(p.callback, setMonto_(p.id,p.monto,p.producto));
+    if(p.action==='inbound') return out_(p.callback, inbound_(p.phone,p.text,p.ts));
     if(p.action==='config')  return out_(p.callback, {autogreet: getConfig_('autogreet')||'on'});
     if(p.action==='setconfig') return out_(p.callback, setConfig_(p.k,p.v));
     return out_(p.callback, getLeads_());
@@ -86,6 +99,7 @@ function getLeads_(){
   ss.getSheets().forEach(sh=>{
     if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
     const sck=statusKey_(m); const mnk=montoKey_(m); const pdk=productoKey_(m); const data=sh.getDataRange().getValues();
+    const rsk=keyByAliases_(m,RESP_ALIASES), rfk=keyByAliases_(m,RESPFEC_ALIASES), rtk=keyByAliases_(m,RESPTXT_ALIASES);
     const g=(row,n)=> m[n]?row[m[n]-1]:'';
     for(let r=1;r<data.length;r++){
       const row=data[r]; const id=g(row,'id'), email=g(row,'email'), fn=g(row,'first_name'), ln=g(row,'last_name');
@@ -99,10 +113,52 @@ function getLeads_(){
         campana:g(row,'campaign_name'), anuncio:g(row,'ad_name'),
         monto: Number(String(mnk?row[m[mnk]-1]:'').replace(/[^0-9.\-]/g,''))||0,
         producto: String(pdk?row[m[pdk]-1]:'').trim(),
+        respondio: String(rsk?row[m[rsk]-1]:'').trim().toLowerCase()==='si',
+        resp_fecha: String(rfk?row[m[rfk]-1]:'').trim(),
+        resp_texto: String(rtk?row[m[rtk]-1]:'').trim(),
         status: STATUSES.indexOf(st)>=0?st:'created', tipo:tipoFrom_(row,m,sh.getName()) });
     }
   });
   return {rows:rows,statuses:STATUSES,ts:new Date().toLocaleString('es-PA')};
+}
+
+/* El cliente RESPONDIÓ por WhatsApp. Lo llama el webhook (api/wa-webhook.js), no una
+   persona. Marca la fila del lead con respondió / cuándo / qué dijo, y si el lead
+   seguía en "created" lo sube a "contacted": si escribió, ya hubo contacto real.
+   Es la señal de calidad más honesta que tenemos — mejor que cualquier estimación. */
+function inbound_(phone,text,ts){
+  const t8=tel8_(phone);
+  if(!t8) return {ok:false,error:'telefono invalido'};
+  const cuando = ts ? new Date(Number(ts)*1000) : new Date();
+  const ss=SpreadsheetApp.getActiveSpreadsheet();
+  for(const sh of ss.getSheets()){
+    if(sh.getLastRow()<2) continue;
+    let {m}=colMap_(sh); if(!isLeadSheet_(m)) continue;
+    const pc=phoneCol_(m); if(!pc) continue;
+    // crear las 3 columnas si es la primera respuesta que llega
+    let rk=keyByAliases_(m,RESP_ALIASES);
+    if(!rk){ sh.getRange(1,sh.getLastColumn()+1).setValue(RESP_DEFAULT); rk=RESP_DEFAULT; m=colMap_(sh).m; }
+    let fk=keyByAliases_(m,RESPFEC_ALIASES);
+    if(!fk){ sh.getRange(1,sh.getLastColumn()+1).setValue(RESPFEC_DEFAULT); fk=RESPFEC_DEFAULT; m=colMap_(sh).m; }
+    let tk=keyByAliases_(m,RESPTXT_ALIASES);
+    if(!tk){ sh.getRange(1,sh.getLastColumn()+1).setValue(RESPTXT_DEFAULT); tk=RESPTXT_DEFAULT; m=colMap_(sh).m; }
+
+    const tels=sh.getRange(2,phoneCol_(m),Math.max(1,sh.getLastRow()-1),1).getValues();
+    for(let i=0;i<tels.length;i++){
+      if(tel8_(tels[i][0])!==t8) continue;
+      const row=i+2;
+      sh.getRange(row,m[rk]).setValue('si');
+      sh.getRange(row,m[fk]).setValue(Utilities.formatDate(cuando,'America/Panama','yyyy-MM-dd HH:mm'));
+      sh.getRange(row,m[tk]).setValue(String(text||'').slice(0,300));
+      // si escribió, hubo contacto: no dejarlo en "created"
+      const sk=statusKey_(m);
+      if(sk){ const act=String(sh.getRange(row,m[sk]).getValue()||'').toLowerCase().trim();
+        if(!act || act==='created') sh.getRange(row,m[sk]).setValue('contacted'); }
+      return {ok:true,fila:row,telefono:t8};
+    }
+  }
+  // Escribió alguien que no está en la hoja (p.ej. llegó por otro lado): no es error.
+  return {ok:true,sin_lead:true,telefono:t8};
 }
 
 // Registrar CUÁNTO se vendió a ese lead; escribe en la columna 'monto_venta' (la crea si falta).

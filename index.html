@@ -233,6 +233,14 @@
   .vta:focus-within{border-color:#5B3FE0}
   .vta.on{border-color:#16a34a;background:#f2fbf6}
   .vta.on i,.vta.on input{color:#16a34a}
+  /* El cliente respondió por WhatsApp (lo escribe el webhook, no una persona) */
+  .respw{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:11px;padding:8px 12px;
+    border:1px solid #9be0bb;background:#f2fbf6;border-radius:12px;min-width:0}
+  .respw svg{width:14px;height:14px;stroke:#16a34a;fill:none;stroke-width:2.2;flex:none}
+  .respw b{color:#137a45;font-size:.78rem;font-weight:800;flex:none}
+  .respf{font-size:.68rem;color:#5a8f74;font-weight:700;flex:none}
+  .respt{flex:1;min-width:0;font-size:.72rem;color:#3f6b55;font-weight:600;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Registrar venta — claro para el vendedor: botón cuando no hay venta, pill verde cuando ya vendió */
   .vsell{position:relative;display:inline-flex;max-width:100%;min-width:0}
   .vsell-t{border:1px dashed #cfc7ea;background:#faf8ff;color:#6f66a0;font-weight:700;font-size:.8rem;
@@ -558,9 +566,14 @@
   /* ============ EMBUDO CRM ============ */
   function renderFunnel(){
     const all=cache.b2c.concat(cache.b2b); const total=all.length||1;
-    const steps=[['created','Recibidos',all.length],['contacted','Contactados',all.filter(l=>['contacted','qualified','converted'].includes(l.status)).length],
+    /* "Respondieron" va justo después de Recibidos porque es el único dato que no
+       depende de que alguien lo marque a mano: el cliente escribió o no escribió. */
+    const resp=all.filter(l=>l.respondio).length;
+    const steps=[['created','Recibidos',all.length]]
+      .concat(resp?[['contacted','Respondieron',resp]]:[])
+      .concat([['contacted','Contactados',all.filter(l=>['contacted','qualified','converted'].includes(l.status)).length],
       ['qualified','Calificados',all.filter(l=>['qualified','converted'].includes(l.status)).length],['converted','Convertidos',all.filter(l=>l.status==='converted').length],
-      ['disqualified','Descalificados',all.filter(l=>l.status==='disqualified').length]];
+      ['disqualified','Descalificados',all.filter(l=>l.status==='disqualified').length]]);
     document.getElementById('funnel').innerHTML=steps.map(s=>'<div class="fstep '+s[0]+'"><b>'+s[2]+'</b><span>'+s[1]+'</span><div class="fp">'+Math.round(s[2]/total*100)+'% del total</div><div class="fbar"><i style="width:'+Math.max(3,Math.round(s[2]/total*100))+'%"></i></div></div>').join('');
   }
 
@@ -721,6 +734,10 @@
       +(l.correo?'<div class="row">'+IC.mail+'<a href="mailto:'+esc(l.correo)+'">'+esc(l.correo)+'</a></div>':'')
       +(l.celular?'<div class="row">'+IC.phone+'<a href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+esc(l.celular)+'</a></div>':'')
       +'<div class="tags">'+(l.empresa?'<span class="tag">'+esc(l.empresa)+'</span>':'')+(l.extra?'<span class="tag">'+esc(l.extra)+'</span>':'')+(l.anuncio?'<span class="tag adtag">'+esc(l.anuncio)+'</span>':'')+'</div>'
+      /* Respondió = la señal de calidad más honesta: no es una estimación, el cliente escribió. */
+      +(l.respondio?('<div class="respw" title="'+esc(l.resp_texto||'')+'">'+IC.chat+'<b>Respondió</b>'
+        +(l.resp_fecha?'<span class="respf">'+esc(l.resp_fecha)+'</span>':'')
+        +(l.resp_texto?'<span class="respt">'+esc(l.resp_texto)+'</span>':'')+'</div>'):'')
       +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select>'
       +'<span class="vsell'+(Number(l.monto)>0?' has':'')+'" id="vw-'+esc(l.id)+'">'
         +'<button type="button" class="vsell-t" onclick="sellOpen(\''+esc(l.id)+'\')" title="Registra cuánto y qué compró este lead">'
