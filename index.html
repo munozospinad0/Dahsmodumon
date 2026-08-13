@@ -571,7 +571,10 @@
     const resp=all.filter(l=>l.respondio).length;
     const steps=[['created','Recibidos',all.length]]
       .concat(resp?[['contacted','Respondieron',resp]]:[])
-      .concat([['contacted','Contactados',all.filter(l=>['contacted','qualified','converted'].includes(l.status)).length],
+      /* "Contactados" incluye a los DESCALIFICADOS a propósito: para descalificar a
+         alguien primero hubo que hablarle. Si no, el embudo dice que faltan por
+         contactar los que el equipo ya trabajó y descartó. */
+      .concat([['contacted','Contactados',all.filter(l=>l.status!=='created').length],
       ['qualified','Calificados',all.filter(l=>['qualified','converted'].includes(l.status)).length],['converted','Convertidos',all.filter(l=>l.status==='converted').length],
       ['disqualified','Descalificados',all.filter(l=>l.status==='disqualified').length]]);
     document.getElementById('funnel').innerHTML=steps.map(s=>'<div class="fstep '+s[0]+'"><b>'+s[2]+'</b><span>'+s[1]+'</span><div class="fp">'+Math.round(s[2]/total*100)+'% del total</div><div class="fbar"><i style="width:'+Math.max(3,Math.round(s[2]/total*100))+'%"></i></div></div>').join('');
