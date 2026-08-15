@@ -259,12 +259,97 @@ function waSendTemplate_(phone,name){
   }catch(err){ return {ok:false,error:String(err)}; }
 }
 
+/* ───────────────────────── instalación del saludo ─────────────────────────
+   El activador hay que crearlo una vez. Se hace desde acá y no a mano en la
+   interfaz porque a mano es fácil dejarlo sin crear y el síntoma es mudo: los
+   leads se quedan en "Nuevo" y nadie sabe por qué. */
+
+const SALUDO_CADA_MIN     = 5;
+const SALUDO_INICIAL_MAX  = 10;   // cuántos pendientes saluda la instalación
+const SALUDO_INICIAL_DIAS = 3;    // y qué tan recientes tienen que ser
+
+function saludoInstalar(){
+  const props=PropertiesService.getScriptProperties();
+  const faltan=['WA_TOKEN','WA_PHONE_NUMBER_ID'].filter(k=>!props.getProperty(k));
+  if(faltan.length){
+    const m='FALTA: '+faltan.join(' y ')+' en Configuración del proyecto → Propiedades del script. '
+           +'Sin eso el saludo no puede salir. No instalé nada.';
+    Logger.log(m); return m;
+  }
+  saludoDesinstalar();
+  const s=saludoSembrar_();
+  ScriptApp.newTrigger('autoGreetNewLeads').timeBased().everyMinutes(SALUDO_CADA_MIN).create();
+  const enviados=autoGreetNewLeads();
+  const m='Listo. Revisa cada '+SALUDO_CADA_MIN+' min. '
+    +s.semilla+' leads viejos quedaron marcados como semilla (NO se les escribió, así se protege el número), '
+    +'y de los pendientes se saludó a '+enviados+'.';
+  Logger.log(m); return m;
+}
+
+function saludoDesinstalar(){
+  let n=0;
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction()==='autoGreetNewLeads'){ ScriptApp.deleteTrigger(t); n++; }
+  });
+  Logger.log('activadores del saludo eliminados: '+n); return n;
+}
+
+/* Marca como semilla todo lo que ya existe, salvo unos pocos pendientes
+   recientes que sí merecen el saludo. Sin esto, la primera corrida le
+   escribiría a toda la base histórica. */
+function saludoSembrar_(){
+  const ss=SpreadsheetApp.getActiveSpreadsheet();
+  const corte=new Date().getTime()-SALUDO_INICIAL_DIAS*86400000;
+  let semilla=0, perdonados=0;
+  ss.getSheets().forEach(sh=>{
+    if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
+    const sck=statusKey_(m);
+    let gc=m['wa_greeted']; if(!gc){ gc=sh.getLastColumn()+1; sh.getRange(1,gc).setValue('wa_greeted'); }
+    const data=sh.getDataRange().getValues();
+    for(let r=1;r<data.length;r++){
+      const row=data[r];
+      if(String(row[gc-1]||'').trim()) continue;
+      const est=sck?String(row[m[sck]-1]||'').toLowerCase().trim():'';
+      const t=m['created_time']?Date.parse(String(row[m['created_time']-1])):NaN;
+      const pendiente=(!est||est==='created') && t && t>=corte && perdonados<SALUDO_INICIAL_MAX;
+      if(pendiente){ perdonados++; continue; }              // se lo deja al saludo normal
+      sh.getRange(r+1,gc).setValue('seed'); semilla++;
+    }
+  });
+  PropertiesService.getScriptProperties().setProperty('WA_GREET_INIT','1');
+  return {semilla:semilla, pendientes:perdonados};
+}
+
+/* Para revisar sin tocar nada: dice si el activador existe, si están las
+   credenciales y en qué quedó el saludo de cada lead. */
+function saludoDiagnostico(){
+  const props=PropertiesService.getScriptProperties();
+  const trig=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='autoGreetNewLeads').length;
+  const cuenta={};
+  SpreadsheetApp.getActiveSpreadsheet().getSheets().forEach(sh=>{
+    if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
+    const gc=m['wa_greeted']; if(!gc) return;
+    sh.getDataRange().getValues().slice(1).forEach(row=>{
+      const v=String(row[gc-1]||'').trim();
+      const k=!v?'(vacío)':v.split(' ')[0].replace(/:$/,'');
+      cuenta[k]=(cuenta[k]||0)+1;
+    });
+  });
+  const m='activador instalado: '+(trig?'SÍ ('+trig+')':'NO')
+    +' | WA_TOKEN: '+(props.getProperty('WA_TOKEN')?'sí':'FALTA')
+    +' | WA_PHONE_NUMBER_ID: '+(props.getProperty('WA_PHONE_NUMBER_ID')?'sí':'FALTA')
+    +' | interruptor: '+(getConfig_('autogreet')==='off'?'APAGADO':'encendido')
+    +' | rastro: '+JSON.stringify(cuenta);
+  Logger.log(m); return m;
+}
+
 // Trigger (cada 5 min): saluda SOLO a leads nuevos. La 1a corrida marca los existentes como 'seed' y NO les envía.
 function autoGreetNewLeads(){
-  if(getConfig_('autogreet')==='off') return;
+  if(getConfig_('autogreet')==='off') return 0;
   const props=PropertiesService.getScriptProperties();
   const seeded=props.getProperty('WA_GREET_INIT')==='1';
   const ss=SpreadsheetApp.getActiveSpreadsheet();
+  let enviados=0;
   ss.getSheets().forEach(sh=>{
     if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
     const sck=statusKey_(m);
@@ -281,6 +366,7 @@ function autoGreetNewLeads(){
       if(!phone){ sh.getRange(rowN,gc).setValue('no-phone'); continue; }
       const res=waSendTemplate_(phone,fn.split(/\s+/)[0]);
       if(res.ok){
+        enviados++;
         sh.getRange(rowN,gc).setValue('sent '+new Date().toLocaleString('es-PA'));
         if(sck){ const cur=String(row[m[sck]-1]||'').toLowerCase().trim(); if(!cur||cur==='created') sh.getRange(rowN,m[sck]).setValue('contacted'); }
       } else { sh.getRange(rowN,gc).setValue('error: '+String(res.error||'').slice(0,45)); }
@@ -288,6 +374,7 @@ function autoGreetNewLeads(){
     }
   });
   if(!seeded) props.setProperty('WA_GREET_INIT','1');
+  return enviados;
 }
 
 // Métricas de campañas desde la Marketing API (cacheadas 10 min para no gastar cuota)
