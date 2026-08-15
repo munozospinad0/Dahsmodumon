@@ -69,9 +69,12 @@
   .camp .big{display:flex;align-items:baseline;gap:22px;margin-bottom:16px}
   .camp .big div b{font-size:1.9rem;font-weight:800;letter-spacing:-.03em;display:block;line-height:1}
   .camp .big div span{font-size:.64rem;color:var(--ink);font-weight:700}
-  .camp .st{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
-  .camp .st div{background:var(--pink);border-radius:12px;padding:10px;text-align:center}
-  .camp .st b{font-size:.98rem;font-weight:800;display:block;white-space:nowrap;letter-spacing:-.01em}
+  /* antes eran 4 columnas fijas y en una tarjeta de ~300px los numeros se cortaban
+     ("36.2…", "0.13…"); ahora envuelven en vez de desbordar */
+  .camp .st{display:grid;grid-template-columns:repeat(auto-fit,minmax(68px,1fr));gap:8px}
+  .camp .st div{background:var(--pink);border-radius:12px;padding:9px 6px;text-align:center;min-width:0}
+  .camp .st b{font-size:.92rem;font-weight:800;display:block;letter-spacing:-.01em;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .camp .st span{font-size:.56rem;color:var(--ink);font-weight:700}
 
   /* ---- graficas ---- */
@@ -240,6 +243,20 @@
   .vta:focus-within{border-color:#5B3FE0}
   .vta.on{border-color:#16a34a;background:#f2fbf6}
   .vta.on i,.vta.on input{color:#16a34a}
+  /* Franja de pendientes: numero grande + que significa, y al tocarlo filtra */
+  .hoy{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0 4px}
+  .hoyb{display:flex;align-items:center;gap:12px;border:0;cursor:pointer;font-family:inherit;
+    background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 20px;
+    box-shadow:var(--sh2);transition:.16s;text-align:left}
+  .hoyb:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(38,22,110,.14)}
+  .hoyb b{font-size:2rem;font-weight:900;color:var(--vio);line-height:1}
+  .hoyb span{font-size:.86rem;font-weight:700;color:var(--ink);max-width:190px;line-height:1.25}
+  .hoyb.urge{border-color:#9be0bb;background:#f2fbf6}
+  .hoyb.urge b{color:#16a34a}
+  .hoyb.urge span{color:#137a45}
+  .hoyok{padding:13px 18px;border-radius:14px;background:#f2fbf6;border:1px solid #9be0bb;
+    color:#137a45;font-weight:700;font-size:.9rem}
+
   /* Lo que dijo el cliente es el dato mas valioso de la tarjeta: va arriba,
      en verde, con la frase textual. Lo escribe el webhook, no una persona. */
   .respw{margin-top:11px;padding:9px 12px;border:1px solid #9be0bb;background:#f2fbf6;border-radius:12px;min-width:0}
@@ -335,7 +352,7 @@
 
   <section>
     <h2>Embudo de leads</h2>
-    <p class="sub">Estado de los leads en el CRM — al marcar qualified o converted se avisa a Meta</p>
+    <p class="sub">En qué va cada lead. Cuando marcas <b>Interesado</b> o <b>Compró</b>, Meta lo aprende y busca más gente parecida.</p>
     <div class="funnel" id="funnel"><div class="state" style="grid-column:1/-1"><div class="spin2"></div>Cargando…</div></div>
   </section>
 
@@ -352,7 +369,9 @@
 
   <section>
     <h2>Leads</h2>
-    <p class="sub">Gestiona cada lead: al tocar el número se abre WhatsApp · cambia el estado y se envía a Meta</p>
+    <p class="sub">Toca el número y se abre WhatsApp. Cuando cambies el estado se guarda solo.</p>
+    <!-- Lo primero que ve el vendedor: qué tiene pendiente HOY, no estadísticas. -->
+    <div class="hoy" id="hoy"></div>
     <div class="watools">
       <div class="watest">
         <div class="watest-h">🧪 Probar plantilla de WhatsApp</div>
@@ -805,9 +824,28 @@
     });
   }
 
+  /* Lo pendiente de HOY, en cristiano y tocable. Un vendedor que no es de
+     computadora no debe tener que interpretar una tabla para saber a quién
+     escribirle: se le dice el número y al tocarlo ya queda filtrado. */
+  function pintarHoy(){
+    const el=document.getElementById('hoy'); if(!el) return;
+    const base=[].concat(cache.b2c||[],cache.b2b||[]);
+    const escribieron=base.filter(l=>l.respondio&&l.status!=='converted'&&l.status!=='disqualified').length;
+    const nuevos=base.filter(l=>(l.status||'created')==='created').length;
+    const t=[];
+    if(escribieron) t.push('<button class="hoyb urge" onclick="setFiltro(\'respondieron\')">'
+      +'<b>'+escribieron+'</b><span>te escribieron y siguen abiertos</span></button>');
+    if(nuevos) t.push('<button class="hoyb" onclick="setFiltro(\'created\')">'
+      +'<b>'+nuevos+'</b><span>sin contactar todavía</span></button>');
+    el.innerHTML = t.length
+      ? t.join('')
+      : '<div class="hoyok">Todo al día: no hay leads esperando respuesta.</div>';
+  }
+
   function render(){
     const base=(cache[tipo]||[]);
     const nResp=base.filter(l=>l.respondio).length;
+    pintarHoy();
     /* "Respondieron" va de primero y aparte: es lo único que un vendedor necesita
        ver al abrir. Un cliente que escribió y sigue sin cerrarse es plata parada. */
     let chips='<button class="chip'+(filtro==='respondieron'?' on':'')+'" onclick="setFiltro(\'respondieron\')">'
