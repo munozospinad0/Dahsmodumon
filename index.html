@@ -598,13 +598,17 @@
   function buildLeadQ(all){
     const m={};
     all.forEach(l=>{ const k=String(l.anuncio||'').trim(); if(!k) return;
-      const e=m[k]||(m[k]={n:0,q:0,d:0,v:0,rev:0});
+      const e=m[k]||(m[k]={n:0,q:0,d:0,v:0,rev:0,r:0});
       e.n++; if(l.status==='qualified'||l.status==='converted') e.q++; if(l.status==='disqualified') e.d++;
+      if(l.respondio) e.r++;
       const mt=Number(l.monto)||0; if(mt>0){ e.v++; e.rev+=mt; } });
     window.__hasRev=all.some(l=>Number(l.monto)>0);
-    // Si el equipo todavía no marca "calificado", esta vista no puede decir nada:
-    // mostrar ceros en rojo por todos lados haría parecer que la cuenta va mal.
     window.__hasQ=all.some(l=>l.status==='qualified'||l.status==='converted');
+    window.__hasResp=all.some(l=>l.respondio);
+    /* Si nadie marca "calificado", esta vista se quedaba muda. Pero que el cliente
+       CONTESTE es una señal igual de buena y no depende de que alguien la marque:
+       o escribió o no escribió. Cuando no hay calificados, se mide por respuesta. */
+    window.__señal = window.__hasQ ? 'q' : (window.__hasResp ? 'r' : null);
     window.LEADQ=m; paintAds(); paintQualityKpi(all);
   }
   function paintAds(){
@@ -612,15 +616,27 @@
     const Q=window.LEADQ, mx=rows.length?rows[0].spend||1:1;
     const tbl=document.getElementById('adsTable');
     if(tbl) tbl.classList.toggle('hasrev', !!window.__hasRev);
+    // la cabecera dice QUÉ se está midiendo, para que nadie lea mal la columna
+    const th=document.querySelectorAll('#adsTable thead th.qh');
+    if(th.length>=2){
+      const resp = window.__señal==='r';
+      th[0].textContent = resp ? 'Contestan' : 'Califican';
+      th[1].textContent = resp ? 'Costo x respuesta' : 'CPL calif.';
+      th[0].title = th[1].title = resp
+        ? 'Nadie ha marcado leads como calificados, así que se mide por quién CONTESTÓ el WhatsApp: o escribió o no escribió, no depende de que alguien lo marque.'
+        : 'Leads que el vendedor marcó como calificados.';
+    }
     host.innerHTML=rows.length?rows.map(a=>{
-      const k=kindOf(a.camp), q=Q?(Q[a.name]||{n:0,q:0}):null;
+      const k=kindOf(a.camp), q=Q?(Q[a.name]||{n:0,q:0,r:0}):null;
       let cal='<td class="r num">—</td><td class="r num">—</td>';
-      if(q&&q.n&&window.__hasQ){
-        const pct=q.q/q.n*100;
+      // se mide por calificados si los hay; si no, por quién contestó
+      const bueno = q ? (window.__señal==='r' ? q.r : q.q) : 0;
+      if(q&&q.n&&window.__señal){
+        const pct=bueno/q.n*100;
         // sin rojo: el cero es dato neutro, no una falta. Se premia lo que funciona.
-        const cls=q.q===0?'qzero':(pct>=15?'qgood':(pct>=5?'qmid':'qlow'));
-        cal='<td class="r num '+cls+'">'+q.q+' <small>('+pct.toFixed(0)+'%)</small></td>'+
-            '<td class="r num '+cls+'">'+(q.q?money(a.spend/q.q):'nunca')+'</td>';
+        const cls=bueno===0?'qzero':(pct>=15?'qgood':(pct>=5?'qmid':'qlow'));
+        cal='<td class="r num '+cls+'">'+bueno+' <small>('+pct.toFixed(0)+'%)</small></td>'+
+            '<td class="r num '+cls+'">'+(bueno?money(a.spend/bueno):'nunca')+'</td>';
       }
       /* Ingresos. Las celdas se emiten siempre (si no, cabecera y filas se
          desalinean) y se ocultan por CSS mientras nadie haya registrado ventas. */
@@ -641,42 +657,48 @@
   function paintQualityKpi(all){
     const rows=window.__adRows; if(!rows) return;
     const gasto=rows.reduce((s,a)=>s+a.spend,0);
-    const q=all.filter(l=>l.status==='qualified'||l.status==='converted').length;
+    const resp = window.__señal==='r';   // sin calificados, se mide por quién contestó
+    const q = resp ? all.filter(l=>l.respondio).length
+                   : all.filter(l=>l.status==='qualified'||l.status==='converted').length;
     const n=all.length||1;
     const box=document.getElementById('qualityBox'); if(!box) return;
     const al0=document.getElementById('qualityAlert');
-    if(!window.__hasQ){
-      box.innerHTML='<div class="qk hint"><span class="ql">Costo por lead calificado</span>'+
-        '<b>—</b><small>Todavía nadie marca leads como <b>calificado</b> en el embudo. '+
-        'En cuanto el equipo empiece a marcarlos, aquí aparece cuánto cuesta de verdad un lead que sirve, '+
-        'y qué anuncio los trae.</small></div>';
+    if(!window.__señal){
+      box.innerHTML='<div class="qk hint"><span class="ql">Calidad de los leads</span>'+
+        '<b>—</b><small>Todavía no hay señal: nadie ha marcado leads como <b>calificado</b> '+
+        'y ningún cliente ha contestado por WhatsApp. En cuanto pase cualquiera de las dos, '+
+        'aquí aparece cuánto cuesta de verdad un lead que sirve y qué anuncio los trae.</small></div>';
       if(al0){ al0.className='qalert'; al0.innerHTML=''; }
       return;
     }
     const cpq=q?money(gasto/q):'—';
     const cpl=money(gasto/n);
     const Q=window.LEADQ||{};
-    // El mejor: menor costo por lead calificado (mínimo 2, para que no sea casualidad).
-    const conQ=rows.map(a=>({a,q:Q[a.name]||{n:0,q:0}})).filter(x=>x.q.q>=2)
-                   .sort((x,y)=>(x.a.spend/x.q.q)-(y.a.spend/y.q.q));
+    const val=x=>resp?x.q.r:x.q.q;   // la métrica según la señal disponible
+    // El mejor: menor costo por lead útil (mínimo 2, para que no sea casualidad).
+    const conQ=rows.map(a=>({a,q:Q[a.name]||{n:0,q:0,r:0}})).filter(x=>val(x)>=2)
+                   .sort((x,y)=>(x.a.spend/val(x))-(y.a.spend/val(y)));
     const mejor=conQ[0];
-    // El que más presupuesto consume calificando poco: ahí está el margen de mejora.
-    const flojo=rows.filter(a=>a.spend/gasto>0.25).map(a=>({a,q:Q[a.name]||{n:0,q:0}}))
-                    .filter(x=>x.q.n>=20&&x.q.q/x.q.n<0.03)[0];
+    // El que más presupuesto consume rindiendo poco: ahí está el margen de mejora.
+    const flojo=rows.filter(a=>a.spend/gasto>0.25).map(a=>({a,q:Q[a.name]||{n:0,q:0,r:0}}))
+                    .filter(x=>x.q.n>=20&&val(x)/x.q.n<0.03)[0];
     let pot=null;
     if(mejor&&flojo){
-      const cpqM=mejor.a.spend/mejor.q.q;
+      const cpqM=mejor.a.spend/val(mejor);
       // Supuesto conservador: al escalar, el mejor rinde la MITAD de bien que hoy.
-      const gana=Math.floor(flojo.a.spend/(cpqM*2))-flojo.q.q;
+      const gana=Math.floor(flojo.a.spend/(cpqM*2))-val(flojo);
       if(gana>0) pot={gana:gana,cpqM:cpqM};
     }
     // ingresos registrados por los vendedores
     const rev=all.reduce((s,l)=>s+(Number(l.monto)||0),0);
     const ventas=all.filter(l=>Number(l.monto)>0).length;
+    const T = resp
+      ? {tot:'Leads que contestaron', costo:'Costo x lead que contesta', verbo:'contesta', gana:'leads que contestan'}
+      : {tot:'Leads calificados',     costo:'Costo x lead calificado',   verbo:'califica', gana:'leads calificados'};
     box.innerHTML=
-      '<div class="qc"><span class="ql">Leads calificados</span><b>'+q+'</b>'+
+      '<div class="qc"><span class="ql">'+T.tot+'</span><b>'+q+'</b>'+
         '<small>'+(q/n*100).toFixed(1)+'% de '+n+' recibidos</small></div>'+
-      '<div class="qc hot"><span class="ql">Costo x lead calificado</span><b>'+cpq+'</b>'+
+      '<div class="qc hot"><span class="ql">'+T.costo+'</span><b>'+cpq+'</b>'+
         '<small>el CPL de '+cpl+' solo mide el formulario</small></div>'+
       (rev>0?
         '<div class="qc good"><span class="ql">Vendido</span><b>'+money(rev)+'</b>'+
@@ -684,20 +706,20 @@
         '<div class="qc"><span class="ql">Costo por venta</span><b>'+money(gasto/ventas)+'</b>'+
           '<small>ticket promedio '+money(rev/ventas)+'</small></div>'
       :'')+
-      (mejor?'<div class="qc good"><span class="ql">Tu mejor anuncio</span><b>'+money(mejor.a.spend/mejor.q.q)+'</b>'+
-        '<small>'+esc(mejor.a.name.length>26?mejor.a.name.slice(0,25)+'…':mejor.a.name)+' · califica '+
-        (mejor.q.q/mejor.q.n*100).toFixed(0)+'%</small></div>':'')+
+      (mejor?'<div class="qc good"><span class="ql">Tu mejor anuncio</span><b>'+money(mejor.a.spend/val(mejor))+'</b>'+
+        '<small>'+esc(mejor.a.name.length>26?mejor.a.name.slice(0,25)+'…':mejor.a.name)+' · '+T.verbo+' '+
+        (val(mejor)/mejor.q.n*100).toFixed(0)+'%</small></div>':'')+
       (pot?'<div class="qc opp"><span class="ql">Margen de mejora</span><b>+'+pot.gana+'</b>'+
-        '<small>leads calificados con la misma inversión</small></div>':'');
+        '<small>'+T.gana+' con la misma inversión</small></div>':'');
 
     const al=document.getElementById('qualityAlert'); if(!al) return;
     if(mejor&&flojo&&pot){
       al.className='qalert on';
-      al.innerHTML='<b>Dónde está la oportunidad.</b> «'+esc(mejor.a.name)+'» califica el '+
-        (mejor.q.q/mejor.q.n*100).toFixed(0)+'% de sus leads y hoy solo tiene '+money(mejor.a.spend)+'. '+
-        '«'+esc(flojo.a.name)+'» tiene el '+(flojo.a.spend/gasto*100).toFixed(0)+'% del presupuesto y califica el '+
-        (flojo.q.q/flojo.q.n*100).toFixed(1)+'%. Moviendo presupuesto del segundo al primero, <b>con la misma inversión '+
-        'pasarías de '+q+' a unos '+(q+pot.gana)+' leads calificados</b>.'+
+      al.innerHTML='<b>Dónde está la oportunidad.</b> «'+esc(mejor.a.name)+'» '+T.verbo+' el '+
+        (val(mejor)/mejor.q.n*100).toFixed(0)+'% de sus leads y hoy solo tiene '+money(mejor.a.spend)+'. '+
+        '«'+esc(flojo.a.name)+'» tiene el '+(flojo.a.spend/gasto*100).toFixed(0)+'% del presupuesto y '+T.verbo+' el '+
+        (val(flojo)/flojo.q.n*100).toFixed(1)+'%. Moviendo presupuesto del segundo al primero, <b>con la misma inversión '+
+        'pasarías de '+q+' a unos '+(q+pot.gana)+' '+T.gana+'</b>.'+
         '<span class="qsup">Estimado conservador: asume que el mejor rinde la mitad de bien al escalar.</span>';
     } else { al.className='qalert'; al.innerHTML=''; }
   }
@@ -749,11 +771,25 @@
   }
 
   function render(){
-    document.getElementById('filtros').innerHTML=['todos'].concat(STATUSES).map(e=>'<button class="chip'+(filtro===e?' on':'')+'" onclick="setFiltro(\''+e+'\')">'+e+'</button>').join('');
-    let rows=(cache[tipo]||[]).slice();
+    const base=(cache[tipo]||[]);
+    const nResp=base.filter(l=>l.respondio).length;
+    /* "Respondieron" va de primero y aparte: es lo único que un vendedor necesita
+       ver al abrir. Un cliente que escribió y sigue sin cerrarse es plata parada. */
+    let chips='<button class="chip'+(filtro==='respondieron'?' on':'')+'" onclick="setFiltro(\'respondieron\')">'
+      +'respondieron'+(nResp?' <b>'+nResp+'</b>':'')+'</button><span class="fsep"></span>';
+    chips+=['todos'].concat(STATUSES).map(e=>'<button class="chip'+(filtro===e?' on':'')+'" onclick="setFiltro(\''+e+'\')">'+e+'</button>').join('');
+    document.getElementById('filtros').innerHTML=chips;
+
+    let rows=base.slice();
     const q=(document.getElementById('q').value||'').toLowerCase().trim();
-    if(filtro!=='todos') rows=rows.filter(l=>(l.status||'created')===filtro);
-    if(q) rows=rows.filter(l=>((l.nombre||'')+' '+(l.apellido||'')+' '+(l.correo||'')+' '+(l.empresa||'')).toLowerCase().includes(q));
+    if(filtro==='respondieron') rows=rows.filter(l=>l.respondio);
+    else if(filtro!=='todos') rows=rows.filter(l=>(l.status||'created')===filtro);
+    if(q) rows=rows.filter(l=>((l.nombre||'')+' '+(l.apellido||'')+' '+(l.correo||'')+' '+(l.empresa||'')+' '+(l.resp_texto||'')).toLowerCase().includes(q));
+    /* Orden: primero quien contestó y todavía no se cerró — ese es el que se
+       está enfriando ahora mismo. Después el resto, por fecha. */
+    const urgencia=l=>(l.respondio && l.status!=='converted' && l.status!=='disqualified')?0:1;
+    rows.sort((a,b)=>urgencia(a)-urgencia(b) || String(b.fecha||'').localeCompare(String(a.fecha||'')));
+
     const c=document.getElementById('content');
     if(!rows.length){ c.innerHTML='<div class="state">'+IC.inbox+'Sin leads'+(filtro!=='todos'?' en "'+filtro+'"':'')+' en esta pestaña todavía.</div>'; return; }
     c.innerHTML='<div class="grid">'+rows.map(card).join('')+'</div>';
