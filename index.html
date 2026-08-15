@@ -953,9 +953,20 @@
   /* El saludo automático dejaba su resultado escrito en la hoja y nadie lo veía:
      si fallaba, el lead se quedaba en "Nuevo" para siempre sin explicación.
      Acá se traduce ese rastro a algo que un vendedor entienda y pueda actuar. */
+  function minutosDe(f){
+    const s=String(f||'').trim().replace(' ','T');
+    const t=Date.parse(s); if(!t) return 0;
+    return (Date.now()-t)/60000;
+  }
+
   function fallaSaludo(l){
     const s=String(l.saludo||'').trim();
-    if(!s || /^(sent|seed|test)/i.test(s)) return '';          // enviado, semilla o prueba: sin novedad
+    /* Columna vacía en un lead ya viejo = la automatización ni lo intentó
+       (se apagó el disparador). Es distinto a que WhatsApp lo rechace, y sin
+       distinguirlo el lead se ve igual de "Nuevo" que uno recién entrado. */
+    if(!s) return (l.status||'created')==='created' && minutosDe(l.fecha)>45
+      ? 'El saludo automático no llegó a intentarlo. Escríbele tú y avisa a ECUS.' : '';
+    if(/^(sent|seed|test)/i.test(s)) return '';                // enviado, semilla o prueba: sin novedad
     if(s==='no-phone') return 'Este lead no dejó número, hay que buscarlo por correo.';
     if(!/^error/i.test(s)) return '';
     const d=s.replace(/^error:\s*/i,'');
