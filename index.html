@@ -738,7 +738,13 @@
   /* KPI de calidad + aviso cuando un anuncio se come el presupuesto sin calificar */
   function paintQualityKpi(all){
     const rows=window.__adRows; if(!rows) return;
-    const gasto=rows.reduce((s,a)=>s+a.spend,0);
+    /* El gasto que se reparte entre los leads tiene que ser el gasto que PUEDE
+       producir leads. Las campañas de mensajes y las de alcance no meten ni una
+       fila en la hoja: contarlas encarecía artificialmente cada lead, y ese es
+       justo el número que se le muestra al cliente. */
+    const rowsLead=rows.filter(a=>{const t=kindOf(a.camp)[0]; return t!=='wa'&&t!=='aw';});
+    const gasto=rowsLead.reduce((s,a)=>s+a.spend,0);
+    const gastoOtro=rows.reduce((s,a)=>s+a.spend,0)-gasto;
     const resp = window.__señal==='r';   // sin calificados, se mide por quién contestó
     const q = resp ? all.filter(l=>l.respondio).length
                    : all.filter(l=>l.status==='qualified'||l.status==='converted').length;
@@ -758,11 +764,11 @@
     const Q=window.LEADQ||{};
     const val=x=>resp?x.q.r:x.q.q;   // la métrica según la señal disponible
     // El mejor: menor costo por lead útil (mínimo 2, para que no sea casualidad).
-    const conQ=rows.map(a=>({a,q:Q[a.name]||{n:0,q:0,r:0}})).filter(x=>val(x)>=2)
+    const conQ=rowsLead.map(a=>({a,q:Q[a.name]||{n:0,q:0,r:0}})).filter(x=>val(x)>=2)
                    .sort((x,y)=>(x.a.spend/val(x))-(y.a.spend/val(y)));
     const mejor=conQ[0];
     // El que más presupuesto consume rindiendo poco: ahí está el margen de mejora.
-    const flojo=rows.filter(a=>a.spend/gasto>0.25).map(a=>({a,q:Q[a.name]||{n:0,q:0,r:0}}))
+    const flojo=rowsLead.filter(a=>a.spend/gasto>0.25).map(a=>({a,q:Q[a.name]||{n:0,q:0,r:0}}))
                     .filter(x=>x.q.n>=20&&val(x)/x.q.n<0.03)[0];
     let pot=null;
     if(mejor&&flojo){
@@ -797,7 +803,13 @@
         '<small>'+esc(mejor.a.name.length>26?mejor.a.name.slice(0,25)+'…':mejor.a.name)+' · '+T.verbo+' '+
         (val(mejor)/mejor.q.n*100).toFixed(0)+'%</small></div>':'')+
       (pot?'<div class="qc opp"><span class="ql">Margen de mejora</span><b>+'+pot.gana+'</b>'+
-        '<small>'+T.gana+' con la misma inversión</small></div>':'');
+        '<small>'+T.gana+' con la misma inversión</small></div>':'')+
+      /* Que el panel diga qué dejó fuera. Si no, el costo por lead de acá no cuadra
+         con el gasto total de arriba y parece un error del dashboard. */
+      (gastoOtro>0?'<div class="qnota">Estos costos se calculan sobre '+money(gasto)+
+        ', el gasto de las campañas de formulario. Quedan fuera <b>'+money(gastoOtro)+
+        '</b> de mensajes y alcance, que no generan leads de formulario: sumarlos haría '+
+        'ver cada lead más caro de lo que realmente es.</div>':'');
 
     /* Aviso honesto: si medimos por respuesta, solo tenemos respuestas desde que
        se conectó WhatsApp, pero el gasto es de TODO el período. El costo sale
