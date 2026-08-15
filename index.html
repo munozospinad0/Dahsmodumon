@@ -917,12 +917,15 @@
     const m=s.match(/^\[([a-z_]+)\]$/i);
     return m ? (RESP_VIEJO[m[1].toLowerCase()]||'respondió') : s;
   }
-  // ¿es una frase real del cliente o solo una descripción nuestra?
+  /* ¿es una frase textual del cliente o una descripción que escribimos nosotros?
+     OJO: no usar \b después de "respondió" — en JavaScript la "ó" no cuenta como
+     carácter de palabra, así que el límite nunca coincide y todo pasaba por cita. */
+  const RESP_NUESTRO=/^(respondió|envió|compartió|reaccionó)(\s|$)/i;
   function esFraseReal(t){
     const s=String(t||'').trim();
     if(!s) return false;
     if(/^\[[a-z_]+\]$/i.test(s)) return false;
-    return !/^(respondió|envió|compartió|reaccionó)\b/i.test(s);
+    return !RESP_NUESTRO.test(s);
   }
 
   /* Los números llegan de mil formas: "+50766011777", "63047837", "6601 1777".
