@@ -64,6 +64,7 @@
   .camp.b2c::before{background:linear-gradient(90deg,var(--org),#ffb469)}
   .camp.b2b::before{background:linear-gradient(90deg,var(--vio2),var(--vio3))}
   .camp.aw::before{background:linear-gradient(90deg,var(--lila),#cebcff)}
+  .camp.wa::before{background:linear-gradient(90deg,#25D366,#0f9d58)}   /* verde WhatsApp */
   .camp .cn{font-weight:800;font-size:1.25rem;margin:6px 0 2px;letter-spacing:-.02em}
   .camp .cf{font-size:.66rem;color:var(--ink);margin-bottom:16px;font-weight:600}
   .camp .big{display:flex;align-items:baseline;gap:22px;margin-bottom:16px}
@@ -502,7 +503,17 @@
   const money=n=>'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const intf=n=>(Number(n)||0).toLocaleString('es');
   const leadsOf=r=>{const a=(r.actions||[]).find(t=>['lead','leadgen.other','onsite_conversion.lead_grouped'].includes(t.action_type));return a?Number(a.value)||0:0;};
-  const kindOf=n=>{const s=(n||'').toUpperCase();if(s.indexOf('B2B')>=0)return['b2b','Proyectos (B2B)'];if(s.indexOf('AW')>=0||s.indexOf('AWARE')>=0)return['aw','Awareness'];if(s.indexOf('B2C')>=0)return['b2c','Hogar (B2C)'];return['aw',n||'—'];};
+  /* Una campaña de mensajes no genera ni un solo "lead": su resultado es la
+     conversación de WhatsApp. Contarla con la misma vara que a las de formulario
+     la dejaba mostrando solo gasto y alcance, como si no hubiera producido nada. */
+  const convOf=r=>{const a=(r.actions||[]).find(t=>t.action_type==='onsite_conversion.messaging_conversation_started_7d');return a?Number(a.value)||0:0;};
+  const respOf=r=>{const a=(r.actions||[]).find(t=>t.action_type==='onsite_conversion.messaging_first_reply');return a?Number(a.value)||0:0;};
+  const kindOf=n=>{const s=(n||'').toUpperCase();
+    if(/\bWA\b|WHATSAPP|MENSAJE/.test(s))return['wa','Mensajes (WhatsApp)'];
+    if(s.indexOf('B2B')>=0)return['b2b','Proyectos (B2B)'];
+    if(s.indexOf('AW')>=0||s.indexOf('AWARE')>=0)return['aw','Awareness'];
+    if(s.indexOf('B2C')>=0)return['b2c','Hogar (B2C)'];
+    return['aw',n||'—'];};
   const cleanPhone=p=>String(p==null?'':p).replace(/^[a-zA-Z]+:\s*/,'').trim();
   const isTest=l=>/test lead|dummy data/i.test((l.nombre||'')+(l.apellido||'')+(l.correo||''))||String(l.correo||'').toLowerCase()==='test@meta.com';
   const CPAL=['#5B3FE0','#FE881C','#A688F8','#F6EE3E','#2563eb','#16a34a'];
@@ -528,23 +539,32 @@
   function loadMetrics(){
     const dp='preset='+encodeURIComponent(preset);
     api('level=account&'+dp).then(d=>{
-      const a=d[0]||{}; const leads=leadsOf(a); const spend=Number(a.spend)||0;
-      const kpis=[['money','Gasto',money(spend)],['users','Leads',intf(leads)],['tag','CPL',leads?money(spend/leads):'—'],
+      const a=d[0]||{}; const leads=leadsOf(a); const spend=Number(a.spend)||0; const conv=convOf(a);
+      /* Si hay campañas de mensajes, su gasto entra en el total pero sus resultados
+         no son leads. Mostrarlas aparte evita que el CPL parezca peor de lo que es. */
+      const kpis=[['money','Gasto',money(spend)],['users','Leads',intf(leads)],['tag','CPL',leads?money(spend/leads):'—']]
+        .concat(conv?[['inbox','Conversaciones',intf(conv)]]:[]).concat([
         ['click','CTR',(Number(a.ctr)||0).toFixed(2)+'<em>%</em>'],['layers','CPM',money(a.cpm)],['cursor','CPC',money(a.cpc)],
-        ['cursor','Clics',intf(a.clicks)],['eye','Impresiones',intf(a.impressions)],['reach','Alcance',intf(a.reach)],['repeat','Frecuencia',(Number(a.frequency)||0).toFixed(2)]];
+        ['cursor','Clics',intf(a.clicks)],['eye','Impresiones',intf(a.impressions)],['reach','Alcance',intf(a.reach)],['repeat','Frecuencia',(Number(a.frequency)||0).toFixed(2)]]);
       document.getElementById('kpis').innerHTML=kpis.map((k,i)=>'<div class="kpi" style="animation-delay:'+(i*40)+'ms"><div class="kt"><div class="ki">'+IC[k[0]]+'</div><span>'+k[1]+'</span></div><b>'+k[2]+'</b></div>').join('');
     }).catch(e=>{ document.getElementById('kpis').innerHTML='<div class="kpi"><b style="font-size:.9rem">'+esc(e.message)+'</b></div>'; });
 
     loadAudience(dp);
 
     api('level=campaign&'+dp).then(d=>{
-      const cs=d.map(c=>({name:c.campaign_name,spend:Number(c.spend)||0,imp:Number(c.impressions)||0,ctr:Number(c.ctr)||0,reach:Number(c.reach)||0,cpm:Number(c.cpm)||0,freq:Number(c.frequency)||0,leads:leadsOf(c)})).sort((a,b)=>b.spend-a.spend);
+      const cs=d.map(c=>({name:c.campaign_name,spend:Number(c.spend)||0,imp:Number(c.impressions)||0,ctr:Number(c.ctr)||0,reach:Number(c.reach)||0,cpm:Number(c.cpm)||0,freq:Number(c.frequency)||0,leads:leadsOf(c),conv:convOf(c),resp:respOf(c)})).sort((a,b)=>b.spend-a.spend);
       document.getElementById('camps').innerHTML=cs.length?cs.map(c=>{const k=kindOf(c.name);
-        const isAw=k[0]==='aw';
-        const big=isAw
+        const isAw=k[0]==='aw', isWa=k[0]==='wa';
+        /* Cada tipo de campaña se juzga por SU resultado: la de formulario por
+           leads, la de mensajes por conversaciones, la de alcance por personas. */
+        const big=isWa
+          ?'<div class="big"><div><b>'+money(c.spend)+'</b><span>Gasto</span></div><div><b>'+intf(c.conv)+'</b><span>Conversaciones</span></div></div>'
+          :isAw
           ?'<div class="big"><div><b>'+money(c.spend)+'</b><span>Gasto</span></div><div><b>'+intf(c.reach)+'</b><span>Alcance</span></div></div>'
           :'<div class="big"><div><b>'+money(c.spend)+'</b><span>Gasto</span></div><div><b>'+intf(c.leads)+'</b><span>Leads</span></div></div>';
-        const st=isAw
+        const st=isWa
+          ?'<div class="st"><div><b>'+(c.conv?money(c.spend/c.conv):'—')+'</b><span>Costo x conversación</span></div><div><b>'+intf(c.resp)+'</b><span>Contestaron</span></div><div><b>'+c.ctr.toFixed(2)+'%</b><span>CTR</span></div><div><b>'+intf(c.reach)+'</b><span>Alcance</span></div></div>'
+          :isAw
           ?'<div class="st"><div><b>'+money(c.cpm)+'</b><span>CPM</span></div><div><b>'+c.freq.toFixed(2)+'</b><span>Frecuencia</span></div><div><b>'+intf(c.imp)+'</b><span>Impr.</span></div><div><b>'+c.ctr.toFixed(2)+'%</b><span>CTR</span></div></div>'
           :'<div class="st"><div><b>'+(c.leads?money(c.spend/c.leads):'—')+'</b><span>CPL</span></div><div><b>'+c.ctr.toFixed(2)+'%</b><span>CTR</span></div><div><b>'+intf(c.imp)+'</b><span>Impr.</span></div><div><b>'+intf(c.reach)+'</b><span>Alcance</span></div></div>';
         return '<div class="camp '+k[0]+'"><div class="cn">'+esc(k[1])+'</div><div class="cf">'+esc(c.name)+'</div>'+big+st+'</div>';}).join('')
