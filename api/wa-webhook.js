@@ -15,6 +15,32 @@ const VERIFY  = process.env.WA_VERIFY_TOKEN;
 const GAS_URL = process.env.APPS_SCRIPT_URL;
 const GAS_KEY = process.env.APPS_SCRIPT_KEY;
 
+/* Qué escribió el cliente. No todo llega como texto: si tocó un botón o eligió
+   de una lista, el contenido viene en otro sitio del payload. Antes eso caía en
+   "[button]" y el vendedor no sabía qué habían respondido. */
+function textoDe(msg) {
+  if (msg.text && msg.text.body) return msg.text.body;
+  if (msg.button && msg.button.text) return msg.button.text;
+  if (msg.interactive) {
+    const i = msg.interactive;
+    if (i.button_reply && i.button_reply.title) return i.button_reply.title;
+    if (i.list_reply && i.list_reply.title) return i.list_reply.title;
+    if (i.nfm_reply && i.nfm_reply.body) return String(i.nfm_reply.body);
+  }
+  // adjuntos: se deja el pie de foto si lo hay, que suele decir más que el tipo
+  for (const t of ['image', 'video', 'document', 'audio']) {
+    if (msg[t]) {
+      const cap = msg[t].caption;
+      const etiqueta = { image: 'foto', video: 'video', document: 'documento', audio: 'nota de voz' }[t];
+      return cap ? (cap + ' (' + etiqueta + ')') : ('envió una ' + etiqueta);
+    }
+  }
+  if (msg.location) return 'compartió su ubicación';
+  if (msg.contacts) return 'compartió un contacto';
+  if (msg.reaction && msg.reaction.emoji) return 'reaccionó ' + msg.reaction.emoji;
+  return 'respondió por WhatsApp';
+}
+
 // Guarda una respuesta en la hoja vía el Apps Script.
 async function guardar(phone, text, ts) {
   if (!GAS_URL || !GAS_KEY) return;
@@ -60,8 +86,7 @@ module.exports = async function handler(req, res) {
           // solo mensajes ENTRANTES (los que manda el cliente)
           const from = String(msg.from || '').replace(/[^0-9]/g, '');
           if (!from) continue;
-          const texto = (msg.text && msg.text.body) ? msg.text.body : ('[' + (msg.type || 'mensaje') + ']');
-          tareas.push(guardar(from, texto, msg.timestamp));
+          tareas.push(guardar(from, textoDe(msg), msg.timestamp));
         }
       }
     }

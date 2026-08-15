@@ -233,13 +233,22 @@
   .vta:focus-within{border-color:#5B3FE0}
   .vta.on{border-color:#16a34a;background:#f2fbf6}
   .vta.on i,.vta.on input{color:#16a34a}
-  /* El cliente respondió por WhatsApp (lo escribe el webhook, no una persona) */
-  .respw{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:11px;padding:8px 12px;
-    border:1px solid #9be0bb;background:#f2fbf6;border-radius:12px;min-width:0}
-  .respw svg{width:14px;height:14px;stroke:#16a34a;fill:none;stroke-width:2.2;flex:none}
-  .respw b{color:#137a45;font-size:.78rem;font-weight:800;flex:none}
-  .respf{font-size:.68rem;color:#5a8f74;font-weight:700;flex:none}
-  .respt{flex:1;min-width:0;font-size:.72rem;color:#3f6b55;font-weight:600;
+  /* Lo que dijo el cliente es el dato mas valioso de la tarjeta: va arriba,
+     en verde, con la frase textual. Lo escribe el webhook, no una persona. */
+  .respw{margin-top:11px;padding:9px 12px;border:1px solid #9be0bb;background:#f2fbf6;border-radius:12px;min-width:0}
+  .respb{display:inline-block;font-size:.62rem;font-weight:900;letter-spacing:.05em;text-transform:uppercase;
+    color:#0f7a3d;background:#d8f3e3;padding:2px 8px;border-radius:20px}
+  .respt{display:block;margin-top:5px;font-size:.86rem;color:#14532d;font-weight:600;line-height:1.35;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .respf{display:block;margin-top:4px;font-size:.66rem;color:#5a8f74;font-weight:700}
+  /* telefono = la accion principal: grande y tocable */
+  .waline{display:inline-flex;align-items:center;gap:8px;margin-top:11px;padding:9px 14px;border-radius:12px;
+    background:#f3f7ff;border:1px solid #d8e4fb;color:#1f4fa8;font-weight:800;font-size:.92rem;
+    text-decoration:none;transition:.15s;max-width:100%}
+  .waline:hover{background:#e7f0ff;border-color:#b9d0f6}
+  .waline svg{width:15px;height:15px;stroke:#1f4fa8;fill:none;stroke-width:2.2;flex:none}
+  /* contexto secundario: se lee si lo buscas, no compite */
+  .sub2{margin-top:9px;font-size:.7rem;color:var(--ink);opacity:.62;font-weight:600;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* Registrar venta — claro para el vendedor: botón cuando no hay venta, pill verde cuando ya vendió */
   .vsell{position:relative;display:inline-flex;max-width:100%;min-width:0}
@@ -750,21 +759,43 @@
     c.innerHTML='<div class="grid">'+rows.map(card).join('')+'</div>';
   }
 
+  /* La hoja devuelve la fecha como Date crudo de JavaScript
+     ("Thu Aug 13 2026 10:53:00 GMT-0500 (Colombia Standard Time)"), que es
+     ilegible en una tarjeta. Se corta a algo humano. */
+  function fechaCorta(v){
+    if(!v) return '';
+    const s=String(v);
+    const iso=s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    let d;
+    if(iso) d=new Date(+iso[1],+iso[2]-1,+iso[3],+iso[4],+iso[5]);
+    else { d=new Date(s); if(isNaN(d)) return s.slice(0,16); }
+    const M=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const dif=(Date.now()-d.getTime())/1000;
+    if(dif<3600) return 'hace '+Math.max(1,Math.round(dif/60))+' min';
+    if(dif<86400) return 'hace '+Math.round(dif/3600)+' h';
+    const hh=('0'+d.getHours()).slice(-2), mm=('0'+d.getMinutes()).slice(-2);
+    return d.getDate()+' '+M[d.getMonth()]+' · '+hh+':'+mm;
+  }
+
   function card(l){
     const e=l.status||'created';
     const nombre=((l.nombre||'')+' '+(l.apellido||'')).trim()||'(sin nombre)';
     const ini=nombre.split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     const wa=String(l.celular||'').replace(/[^0-9]/g,'');
     const opts=STATUSES.map(o=>'<option value="'+o+'"'+(o===e?' selected':'')+'>'+o+'</option>').join('');
+    /* La tarjeta se ordena por lo que el vendedor necesita, en ese orden:
+       quién es · si contestó y qué dijo · cómo escribirle. Lo demás (correo,
+       fecha, nombre del anuncio) baja a una línea gris: sirve de contexto,
+       no compite por atención. */
     return '<div class="lead" data-e="'+esc(e)+'">'
-      +'<div class="lhead"><div class="av">'+esc(ini)+'</div><div><h3>'+esc(nombre)+'</h3><div class="meta">'+esc(l.fecha||'')+'</div></div></div>'
-      +(l.correo?'<div class="row">'+IC.mail+'<a href="mailto:'+esc(l.correo)+'">'+esc(l.correo)+'</a></div>':'')
-      +(l.celular?'<div class="row">'+IC.phone+'<a href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+esc(l.celular)+'</a></div>':'')
-      +'<div class="tags">'+(l.empresa?'<span class="tag">'+esc(l.empresa)+'</span>':'')+(l.extra?'<span class="tag">'+esc(l.extra)+'</span>':'')+(l.anuncio?'<span class="tag adtag">'+esc(l.anuncio)+'</span>':'')+'</div>'
-      /* Respondió = la señal de calidad más honesta: no es una estimación, el cliente escribió. */
-      +(l.respondio?('<div class="respw" title="'+esc(l.resp_texto||'')+'">'+IC.chat+'<b>Respondió</b>'
-        +(l.resp_fecha?'<span class="respf">'+esc(l.resp_fecha)+'</span>':'')
-        +(l.resp_texto?'<span class="respt">'+esc(l.resp_texto)+'</span>':'')+'</div>'):'')
+      +'<div class="lhead"><div class="av">'+esc(ini)+'</div><div style="min-width:0"><h3>'+esc(nombre)+'</h3>'
+        +'<div class="meta">'+esc(fechaCorta(l.fecha))+(l.extra?' · '+esc(l.extra):'')+'</div></div></div>'
+      +(l.respondio?('<div class="respw" title="'+esc(l.resp_texto||'')+'">'
+        +'<span class="respb">Respondió</span>'
+        +(l.resp_texto?'<span class="respt">'+esc(l.resp_texto)+'</span>':'')
+        +(l.resp_fecha?'<span class="respf">'+esc(fechaCorta(l.resp_fecha))+'</span>':'')+'</div>'):'')
+      +(l.celular?'<a class="waline" href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+IC.phone+esc(l.celular)+'</a>':'')
+      +'<div class="sub2">'+(l.correo?esc(l.correo)+' · ':'')+(l.anuncio?esc(l.anuncio):'')+'</div>'
       +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select>'
       +'<span class="vsell'+(Number(l.monto)>0?' has':'')+'" id="vw-'+esc(l.id)+'">'
         +'<button type="button" class="vsell-t" onclick="sellOpen(\''+esc(l.id)+'\')" title="Registra cuánto y qué compró este lead">'
