@@ -372,24 +372,35 @@
     <p class="sub">Toca el número y se abre WhatsApp. Cuando cambies el estado se guarda solo.</p>
     <!-- Lo primero que ve el vendedor: qué tiene pendiente HOY, no estadísticas. -->
     <div class="hoy" id="hoy"></div>
+    <!-- El saludo automático se queda visible (es un interruptor que importa);
+         la prueba de plantilla es de administrador y estorbaba en medio del
+         trabajo del vendedor, así que va plegada. -->
     <div class="watools">
-      <div class="watest">
-        <div class="watest-h">🧪 Probar plantilla de WhatsApp</div>
+      <label class="watoggle">
+        <div><b>Saludo automático</b><span>A cada lead nuevo se le manda el primer mensaje solo</span></div>
+        <input type="checkbox" id="autoGreet" onchange="setAutoGreet(this.checked)"><span class="tsw"></span>
+      </label>
+      <details class="watest">
+        <summary>Probar el mensaje en mi número</summary>
         <div class="watest-row">
           <input id="wtcc" class="wtin cc" value="+507" placeholder="+507">
           <input id="wtnum" class="wtin" placeholder="Número (ej. 6466 0991)" inputmode="numeric">
           <input id="wtname" class="wtin" placeholder="Nombre (opcional)">
-          <button class="btn wtsend" onclick="sendTest()">Enviar test</button>
+          <button class="btn wtsend" onclick="sendTest()">Enviar</button>
         </div>
         <div class="wtmsg" id="wtmsg"></div>
-      </div>
-      <label class="watoggle">
-        <div><b>Saludo automático</b><span>Manda la plantilla y marca "contactado" a cada lead nuevo</span></div>
-        <input type="checkbox" id="autoGreet" onchange="setAutoGreet(this.checked)"><span class="tsw"></span>
-      </label>
+      </details>
     </div>
     <style>
-    .watools{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin:0 0 18px}
+    /* el interruptor manda; la prueba va debajo y plegada */
+    .watools{display:flex;flex-direction:column;gap:10px;margin:0 0 18px}
+    .watest[open] summary{margin-bottom:12px}
+    .watest summary{cursor:pointer;font-weight:800;font-size:.82rem;color:var(--vio);
+      list-style:none;display:inline-flex;align-items:center;gap:7px;padding:4px 0}
+    .watest summary::-webkit-details-marker{display:none}
+    .watest summary::before{content:"+";display:inline-grid;place-items:center;width:18px;height:18px;
+      border-radius:50%;background:var(--pink);font-weight:900;font-size:.8rem}
+    .watest[open] summary::before{content:"–"}
     @media(max-width:760px){.watools{grid-template-columns:1fr}}
     .watest{background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:14px 16px;box-shadow:0 6px 16px rgba(62,42,155,.06)}
     .watest-h{font-weight:800;color:var(--vio);font-size:.9rem;margin-bottom:10px}
@@ -421,7 +432,7 @@
       <div class="filtros" id="filtros"></div>
       <button class="btn" id="refbtn" onclick="loadAll(true)"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg> Actualizar</button>
     </div>
-    <div class="sellhint"><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><div><b>¿El lead compró?</b> Toca <b>+ Registrar venta</b> en su tarjeta, escribe el monto en dólares y qué compró. El lead pasa a <b>Convertido</b> y se calcula el <b>retorno (ROAS)</b> del anuncio que lo trajo.</div></div>
+    <div class="sellhint"><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><div><b>¿El lead compró?</b> Toca <b>+ Registrar venta</b> en su tarjeta y escribe cuánto y qué compró. Con eso sabemos qué anuncio trae plata de verdad, no solo formularios.</div></div>
     <div id="content"><div class="state"><div class="spin2"></div>Cargando leads…</div></div>
   </section>
 </div>
@@ -824,13 +835,19 @@
     });
   }
 
+  /* "Abierto" = escribió y todavía no se cerró. Es la única definición que se usa
+     en toda la pantalla, para que la franja y el chip nunca digan números distintos. */
+  const abierto=l=>!!l.respondio && l.status!=='converted' && l.status!=='disqualified';
+
   /* Lo pendiente de HOY, en cristiano y tocable. Un vendedor que no es de
      computadora no debe tener que interpretar una tabla para saber a quién
      escribirle: se le dice el número y al tocarlo ya queda filtrado. */
   function pintarHoy(){
     const el=document.getElementById('hoy'); if(!el) return;
-    const base=[].concat(cache.b2c||[],cache.b2b||[]);
-    const escribieron=base.filter(l=>l.respondio&&l.status!=='converted'&&l.status!=='disqualified').length;
+    /* Se cuenta SOLO la pestaña abierta. Antes la franja sumaba las dos y el chip
+       contaba una: salía "7" arriba y "4" abajo para lo mismo, y eso despista. */
+    const base=(cache[tipo]||[]);
+    const escribieron=base.filter(l=>abierto(l)).length;
     const nuevos=base.filter(l=>(l.status||'created')==='created').length;
     const t=[];
     if(escribieron) t.push('<button class="hoyb urge" onclick="setFiltro(\'respondieron\')">'
@@ -844,9 +861,9 @@
 
   function render(){
     const base=(cache[tipo]||[]);
-    const nResp=base.filter(l=>l.respondio).length;
+    const nResp=base.filter(l=>abierto(l)).length;   // misma cuenta que la franja de arriba
     pintarHoy();
-    /* "Respondieron" va de primero y aparte: es lo único que un vendedor necesita
+    /* "Te escribieron" va de primero y aparte: es lo único que un vendedor necesita
        ver al abrir. Un cliente que escribió y sigue sin cerrarse es plata parada. */
     let chips='<button class="chip'+(filtro==='respondieron'?' on':'')+'" onclick="setFiltro(\'respondieron\')">'
       +'Te escribieron'+(nResp?' <b>'+nResp+'</b>':'')+'</button><span class="fsep"></span>';
@@ -855,12 +872,12 @@
 
     let rows=base.slice();
     const q=(document.getElementById('q').value||'').toLowerCase().trim();
-    if(filtro==='respondieron') rows=rows.filter(l=>l.respondio);
+    if(filtro==='respondieron') rows=rows.filter(abierto);
     else if(filtro!=='todos') rows=rows.filter(l=>(l.status||'created')===filtro);
     if(q) rows=rows.filter(l=>((l.nombre||'')+' '+(l.apellido||'')+' '+(l.correo||'')+' '+(l.empresa||'')+' '+(l.resp_texto||'')).toLowerCase().includes(q));
     /* Orden: primero quien contestó y todavía no se cerró — ese es el que se
        está enfriando ahora mismo. Después el resto, por fecha. */
-    const urgencia=l=>(l.respondio && l.status!=='converted' && l.status!=='disqualified')?0:1;
+    const urgencia=l=>abierto(l)?0:1;
     rows.sort((a,b)=>urgencia(a)-urgencia(b) || String(b.fecha||'').localeCompare(String(a.fecha||'')));
 
     const c=document.getElementById('content');
