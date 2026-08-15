@@ -191,9 +191,11 @@ function setMonto_(id,monto,producto){
         // y se le avisa a Meta CON el valor, para que pueda optimizar por dinero
         let capi='';
         if(v>0 && DATASET_ID){
-          const g=(n)=> m[n]?sh.getRange(row,m[n]).getValue():'';
-          const res=sendCapi_('converted',{lead_id:g('id'),email:g('email'),phone:(phoneCol_(m)?sh.getRange(row,phoneCol_(m)).getValue():''),monto:v});
-          capi='converted $'+v+(res.ok?' - enviado a Meta':' - error '+res.code);
+          try{                                  // igual que en updateLead_: la venta ya está guardada, Meta es extra
+            const g=(n)=> m[n]?sh.getRange(row,m[n]).getValue():'';
+            const res=sendCapi_('converted',{lead_id:g('id'),email:g('email'),phone:(phoneCol_(m)?sh.getRange(row,phoneCol_(m)).getValue():''),monto:v});
+            capi='converted $'+v+(res.ok?' - enviado a Meta':' - error '+res.code);
+          }catch(err){ capi='converted $'+v+' - guardado, Meta pendiente'; }
         }
         return {ok:true,monto:v,producto:v>0?prod:'',status:v>0?'converted':undefined,capi:capi};
       }
@@ -214,11 +216,16 @@ function updateLead_(id,status){
     for(let i=0;i<ids.length;i++){
       if(String(ids[i][0])===String(id)){
         const row=i+2; sh.getRange(row,sc).setValue(status);
+        /* El estado ya quedó guardado arriba. Avisarle a Meta es un extra: si eso
+           falla NO se puede perder el guardado ni decirle al vendedor que no se
+           guardó, porque vuelve a hacer clic sobre algo que ya estaba bien. */
         let capi='';
         if(CAPI_STAGES.indexOf(status)>=0){
-          const full=sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0]; const gg=n=>m[n]?full[m[n]-1]:'';
-          const res=sendCapi_(status,{lead_id:gg('id'),email:gg('email'),phone:(phoneCol_(nm)?sh.getRange(row,phoneCol_(nm)).getValue():'')});
-          capi=status+(res.ok?' - enviado a Meta':' - error '+res.code);
+          try{
+            const full=sh.getRange(row,1,1,sh.getLastColumn()).getValues()[0]; const gg=n=>m[n]?full[m[n]-1]:'';
+            const res=sendCapi_(status,{lead_id:gg('id'),email:gg('email'),phone:clean_(phoneOf_(full,m))});
+            capi=status+(res.ok?' - enviado a Meta':' - error '+res.code);
+          }catch(err){ capi=status+' - guardado, Meta pendiente'; }
         }
         return {ok:true,status:status,capi:capi};
       }
