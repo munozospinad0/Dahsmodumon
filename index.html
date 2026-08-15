@@ -264,6 +264,9 @@
     color:#0f7a3d;background:#d8f3e3;padding:2px 8px;border-radius:20px}
   .respt{display:block;margin-top:5px;font-size:.86rem;color:#14532d;font-weight:600;line-height:1.35;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* si no es una frase textual del cliente sino una descripcion nuestra,
+     no debe leerse como si fuera una cita */
+  .respt.vago{font-style:italic;font-weight:500;color:#5a8f74}
   .respf{display:block;margin-top:4px;font-size:.66rem;color:#5a8f74;font-weight:700}
   /* telefono = la accion principal: grande y tocable */
   .waline{display:inline-flex;align-items:center;gap:8px;margin-top:11px;padding:9px 14px;border-radius:12px;
@@ -914,6 +917,22 @@
     const m=s.match(/^\[([a-z_]+)\]$/i);
     return m ? (RESP_VIEJO[m[1].toLowerCase()]||'respondió') : s;
   }
+  // ¿es una frase real del cliente o solo una descripción nuestra?
+  function esFraseReal(t){
+    const s=String(t||'').trim();
+    if(!s) return false;
+    if(/^\[[a-z_]+\]$/i.test(s)) return false;
+    return !/^(respondió|envió|compartió|reaccionó)\b/i.test(s);
+  }
+
+  /* Los números llegan de mil formas: "+50766011777", "63047837", "6601 1777".
+     Un vendedor los lee mejor todos iguales. Panamá usa 8 dígitos. */
+  function telBonito(v){
+    const d=String(v||'').replace(/[^0-9]/g,'');
+    const local = d.length>8 ? d.slice(-8) : d;
+    if(local.length!==8) return String(v||'');
+    return '+507 '+local.slice(0,4)+'-'+local.slice(4);
+  }
 
   function card(l){
     const e=l.status||'created';
@@ -930,9 +949,10 @@
         +'<div class="meta">'+esc(fechaCorta(l.fecha))+(l.extra?' · '+esc(l.extra):'')+'</div></div></div>'
       +(l.respondio?('<div class="respw" title="'+esc(textoResp(l.resp_texto))+'">'
         +'<span class="respb">Respondió</span>'
-        +(l.resp_texto?'<span class="respt">'+esc(textoResp(l.resp_texto))+'</span>':'')
+        +(l.resp_texto?'<span class="respt'+(esFraseReal(l.resp_texto)?'':' vago')+'">'
+            +esc(textoResp(l.resp_texto))+'</span>':'')
         +(l.resp_fecha?'<span class="respf">'+esc(fechaCorta(l.resp_fecha))+'</span>':'')+'</div>'):'')
-      +(l.celular?'<a class="waline" href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+IC.phone+esc(l.celular)+'</a>':'')
+      +(l.celular?'<a class="waline" href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+IC.phone+esc(telBonito(l.celular))+'</a>':'')
       +'<div class="sub2">'+(l.correo?esc(l.correo)+' · ':'')+(l.anuncio?esc(l.anuncio):'')+'</div>'
       +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select>'
       +'<span class="vsell'+(Number(l.monto)>0?' has':'')+'" id="vw-'+esc(l.id)+'">'
