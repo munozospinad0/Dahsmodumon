@@ -268,6 +268,11 @@
      no debe leerse como si fuera una cita */
   .respt.vago{font-style:italic;font-weight:500;color:#5a8f74}
   .respf{display:block;margin-top:4px;font-size:.66rem;color:#5a8f74;font-weight:700}
+  /* aviso de saludo fallido: ambar, no rojo. No es un error del vendedor,
+     es un "ojo, este no recibio nada, escribile tu". */
+  .warn{display:flex;align-items:flex-start;gap:8px;margin-top:11px;padding:9px 12px;border-radius:11px;
+    background:#fff8e8;border:1px solid #f3dfae;color:#8a6414;font-size:.78rem;font-weight:700;line-height:1.4}
+  .warn svg{width:15px;height:15px;flex:none;margin-top:1px;stroke:#c8901c}
   /* telefono = la accion principal: grande y tocable */
   .waline{display:inline-flex;align-items:center;gap:8px;margin-top:11px;padding:9px 14px;border-radius:12px;
     background:#f3f7ff;border:1px solid #d8e4fb;color:#1f4fa8;font-weight:800;font-size:.92rem;
@@ -481,6 +486,7 @@
     mail:S('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/>'),
     phone:S('<path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3-8.6A2 2 0 014.1 2H7a2 2 0 012 1.7c.1 1.2.4 2.3.7 3.4a2 2 0 01-.5 2.1L8 10.5a16 16 0 006 6l1.3-1.2a2 2 0 012.1-.5c1.1.3 2.2.6 3.4.7A2 2 0 0122 16.9z"/>'),
     send:S('<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>'),
+    warn:S('<path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'),
     inbox:S('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.5L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.5-6.5A2 2 0 0016.8 4H7.2a2 2 0 00-1.7 1.5z"/>'),
     money:S('<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>'),
     users:S('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8"/>'),
@@ -851,10 +857,17 @@
        contaba una: salía "7" arriba y "4" abajo para lo mismo, y eso despista. */
     const base=(cache[tipo]||[]);
     const escribieron=base.filter(l=>abierto(l)).length;
-    const nuevos=base.filter(l=>(l.status||'created')==='created').length;
+    /* Los "Nuevo" no son todos iguales: unos esperan turno y a otros el saludo
+       automático les falló. Mezclarlos hacía la pregunta obvia ("¿no se supone
+       que el mensaje sale solo?") sin dar la respuesta. */
+    const pend=base.filter(l=>(l.status||'created')==='created');
+    const fallados=pend.filter(l=>fallaSaludo(l)).length;
+    const nuevos=pend.length-fallados;
     const t=[];
     if(escribieron) t.push('<button class="hoyb urge" onclick="setFiltro(\'respondieron\')">'
       +'<b>'+escribieron+'</b><span>te escribieron y siguen abiertos</span></button>');
+    if(fallados) t.push('<button class="hoyb urge" onclick="setFiltro(\'created\')">'
+      +'<b>'+fallados+'</b><span>no recibieron el saludo: escríbeles tú</span></button>');
     if(nuevos) t.push('<button class="hoyb" onclick="setFiltro(\'created\')">'
       +'<b>'+nuevos+'</b><span>sin contactar todavía</span></button>');
     el.innerHTML = t.length
@@ -937,8 +950,24 @@
     return '+507 '+local.slice(0,4)+'-'+local.slice(4);
   }
 
+  /* El saludo automático dejaba su resultado escrito en la hoja y nadie lo veía:
+     si fallaba, el lead se quedaba en "Nuevo" para siempre sin explicación.
+     Acá se traduce ese rastro a algo que un vendedor entienda y pueda actuar. */
+  function fallaSaludo(l){
+    const s=String(l.saludo||'').trim();
+    if(!s || /^(sent|seed|test)/i.test(s)) return '';          // enviado, semilla o prueba: sin novedad
+    if(s==='no-phone') return 'Este lead no dejó número, hay que buscarlo por correo.';
+    if(!/^error/i.test(s)) return '';
+    const d=s.replace(/^error:\s*/i,'');
+    if(/template/i.test(d))                 return 'No salió el saludo: la plantilla de WhatsApp no está disponible. Escríbele a mano.';
+    if(/token|expired|session|OAuth/i.test(d)) return 'No salió el saludo: se venció la conexión con WhatsApp. Escríbele a mano.';
+    if(/telefono|invalid|recipient/i.test(d)) return 'No salió el saludo: el número no es válido en WhatsApp.';
+    return 'No salió el saludo automático. Escríbele a mano.';
+  }
+
   function card(l){
     const e=l.status||'created';
+    const falla=fallaSaludo(l);
     const nombre=((l.nombre||'')+' '+(l.apellido||'')).trim()||'(sin nombre)';
     const ini=nombre.split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     const wa=String(l.celular||'').replace(/[^0-9]/g,'');
@@ -955,6 +984,7 @@
         +(l.resp_texto?'<span class="respt'+(esFraseReal(l.resp_texto)?'':' vago')+'">'
             +esc(textoResp(l.resp_texto))+'</span>':'')
         +(l.resp_fecha?'<span class="respf">'+esc(fechaCorta(l.resp_fecha))+'</span>':'')+'</div>'):'')
+      +(falla?'<div class="warn">'+IC.warn+'<span>'+esc(falla)+'</span></div>':'')
       +(l.celular?'<a class="waline" href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+IC.phone+esc(telBonito(l.celular))+'</a>':'')
       +'<div class="sub2">'+(l.correo?esc(l.correo)+' · ':'')+(l.anuncio?esc(l.anuncio):'')+'</div>'
       +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select>'

@@ -100,6 +100,9 @@ function getLeads_(){
     if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
     const sck=statusKey_(m); const mnk=montoKey_(m); const pdk=productoKey_(m); const data=sh.getDataRange().getValues();
     const rsk=keyByAliases_(m,RESP_ALIASES), rfk=keyByAliases_(m,RESPFEC_ALIASES), rtk=keyByAliases_(m,RESPTXT_ALIASES);
+    // se devuelve para que el dashboard pueda avisar si el saludo fallo: antes el
+    // error quedaba escondido en la hoja y el lead se quedaba en "Nuevo" sin motivo
+    const gk=m['wa_greeted'];
     const g=(row,n)=> m[n]?row[m[n]-1]:'';
     for(let r=1;r<data.length;r++){
       const row=data[r]; const id=g(row,'id'), email=g(row,'email'), fn=g(row,'first_name'), ln=g(row,'last_name');
@@ -116,6 +119,7 @@ function getLeads_(){
         respondio: String(rsk?row[m[rsk]-1]:'').trim().toLowerCase()==='si',
         resp_fecha: String(rfk?row[m[rfk]-1]:'').trim(),
         resp_texto: String(rtk?row[m[rtk]-1]:'').trim(),
+        saludo: String(gk?row[gk-1]:'').trim(),
         status: STATUSES.indexOf(st)>=0?st:'created', tipo:tipoFrom_(row,m,sh.getName()) });
     }
   });
