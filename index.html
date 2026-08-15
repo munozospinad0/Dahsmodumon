@@ -227,6 +227,9 @@
   /* Vendido/Retorno solo aparecen cuando ya hay ventas registradas */
   #adsTable .qv{display:none}
   #adsTable.hasrev .qv{display:table-cell}
+  /* "Contestan" solo aparece si el WhatsApp esta conectado; si no, seria una columna de ceros */
+  #adsTable .qresp{display:none}
+  #adsTable.hasresp .qresp{display:table-cell}
   /* campo para registrar cuánto se vendió, en la tarjeta del lead */
   .vta{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--line);border-radius:10px;
     padding:5px 9px;background:#fff;transition:.15s}
@@ -342,7 +345,7 @@
     <div class="qbox" id="qualityBox"></div>
     <div class="qalert" id="qualityAlert"></div>
     <div class="tcard">
-      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r qh">Califican</th><th class="r qh">CPL calif.</th><th class="r qh qv">Vendido</th><th class="r qh qv">Retorno</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="12"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
+      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r qh qresp" title="El cliente respondió el WhatsApp. Es automático: nadie tiene que marcarlo.">Contestan</th><th class="r qh" title="El vendedor lo marcó como buen prospecto en el embudo.">Califican</th><th class="r qh" title="Cuánto cuesta un lead que de verdad sirve, sobre la etapa más profunda con datos.">Costo x útil</th><th class="r qh qv">Vendido</th><th class="r qh qv">Retorno</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="13"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
       <div class="pvhint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Toca un anuncio para ver su preview real de Facebook</div>
     </div>
   </section>
@@ -430,6 +433,13 @@
 <script src="config.js"></script>
 <script>
   const STATUSES=['created','contacted','qualified','disqualified','converted'];
+  /* Los vendedores no son de computadora: veían "disqualified" y "created" en
+     inglés técnico. El VALOR que se guarda en la hoja y se manda a Meta no cambia
+     —eso rompería el CAPI—, solo cambia lo que se lee en pantalla. */
+  const ETIQUETA={created:'Nuevo',contacted:'Contactado',qualified:'Interesado',
+                  disqualified:'Descartado',converted:'Compró',
+                  todos:'Todos',respondieron:'Respondieron'};
+  const eti=s=>ETIQUETA[s]||s;
   const PRESETS=[['today','Hoy'],['yesterday','Ayer'],['last_7d','7 días'],['last_30d','30 días'],['maximum','Todo']];
   let tipo='b2c', filtro='todos', preset='maximum', cache={b2c:[],b2b:[]}, charts={};
   const pendingStatus={};   // id -> estado recién marcado, protegido hasta que el server lo confirme
@@ -609,9 +619,11 @@
     window.__hasRev=all.some(l=>Number(l.monto)>0);
     window.__hasQ=all.some(l=>l.status==='qualified'||l.status==='converted');
     window.__hasResp=all.some(l=>l.respondio);
-    /* Si nadie marca "calificado", esta vista se quedaba muda. Pero que el cliente
-       CONTESTE es una señal igual de buena y no depende de que alguien la marque:
-       o escribió o no escribió. Cuando no hay calificados, se mide por respuesta. */
+    /* Son DOS etapas distintas del embudo y las dos se muestran:
+         contestó  = el cliente escribió (automático, nadie lo marca)
+         calificado = el vendedor lo juzgó buen prospecto (manual)
+       El COSTO se calcula sobre la etapa más profunda que ya tenga datos, para
+       que el número no salga vacío mientras el equipo empieza a marcar. */
     window.__señal = window.__hasQ ? 'q' : (window.__hasResp ? 'r' : null);
     window.LEADQ=m; paintAds(); paintQualityKpi(all);
   }
@@ -620,28 +632,23 @@
     const Q=window.LEADQ, mx=rows.length?rows[0].spend||1:1;
     const tbl=document.getElementById('adsTable');
     if(tbl) tbl.classList.toggle('hasrev', !!window.__hasRev);
-    // la cabecera dice QUÉ se está midiendo, para que nadie lea mal la columna
-    const th=document.querySelectorAll('#adsTable thead th.qh');
-    if(th.length>=2){
-      const resp = window.__señal==='r';
-      th[0].textContent = resp ? 'Contestan' : 'Califican';
-      th[1].textContent = resp ? 'Costo x respuesta' : 'CPL calif.';
-      th[0].title = th[1].title = resp
-        ? 'Nadie ha marcado leads como calificados, así que se mide por quién CONTESTÓ el WhatsApp: o escribió o no escribió, no depende de que alguien lo marque.'
-        : 'Leads que el vendedor marcó como calificados.';
-    }
+    // la columna "Contestan" solo tiene sentido si el WhatsApp está conectado
+    if(tbl) tbl.classList.toggle('hasresp', !!window.__hasResp);
     host.innerHTML=rows.length?rows.map(a=>{
       const k=kindOf(a.camp), q=Q?(Q[a.name]||{n:0,q:0,r:0}):null;
-      let cal='<td class="r num">—</td><td class="r num">—</td>';
-      // se mide por calificados si los hay; si no, por quién contestó
-      const bueno = q ? (window.__señal==='r' ? q.r : q.q) : 0;
-      if(q&&q.n&&window.__señal){
-        const pct=bueno/q.n*100;
-        // sin rojo: el cero es dato neutro, no una falta. Se premia lo que funciona.
-        const cls=bueno===0?'qzero':(pct>=15?'qgood':(pct>=5?'qmid':'qlow'));
-        cal='<td class="r num '+cls+'">'+bueno+' <small>('+pct.toFixed(0)+'%)</small></td>'+
-            '<td class="r num '+cls+'">'+(bueno?money(a.spend/bueno):'nunca')+'</td>';
-      }
+      // color según qué tan bien va esa etapa; el cero va en gris, no en rojo
+      const tono=(v,tot)=>{ if(!tot) return ''; const p=v/tot*100;
+        return v===0?'qzero':(p>=15?'qgood':(p>=5?'qmid':'qlow')); };
+      const celda=(v,tot,mostrar)=> (!mostrar||!tot) ? '<td class="r num qr">—</td>'
+        : '<td class="r num qr '+tono(v,tot)+'">'+v+' <small>('+(v/tot*100).toFixed(0)+'%)</small></td>';
+      // Contestó y Calificado son etapas distintas: se muestran las dos.
+      const cResp = celda(q?q.r:0, q?q.n:0, window.__hasResp).replace('qr','qr qresp');
+      const cCal  = celda(q?q.q:0, q?q.n:0, true);
+      // el costo se calcula sobre la etapa más profunda que ya tenga datos
+      const util = q ? (window.__señal==='r' ? q.r : q.q) : 0;
+      const cCosto = '<td class="r num '+(util?tono(util,q.n):'qzero')+'">'+
+        (util?money(a.spend/util):(q&&q.n?'nunca':'—'))+'</td>';
+      const cal = cResp + cCal + cCosto;
       /* Ingresos. Las celdas se emiten siempre (si no, cabecera y filas se
          desalinean) y se ocultan por CSS mientras nadie haya registrado ventas. */
       const rev=q?q.rev:0, nv=q?q.v:0;
@@ -655,7 +662,7 @@
       +cal+vta
       +'<td class="r num">'+a.ctr.toFixed(2)+'%</td><td class="r num">'+intf(a.imp)+'</td>'
       +'<td class="r"><button class="seebtn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Ver</button></td></tr>';}).join('')
-      :'<tr><td colspan="12"><div class="state" style="padding:18px">Sin entregas aún en este rango.</div></td></tr>';
+      :'<tr><td colspan="13"><div class="state" style="padding:18px">Sin entregas aún en este rango.</div></td></tr>';
   }
   /* KPI de calidad + aviso cuando un anuncio se come el presupuesto sin calificar */
   function paintQualityKpi(all){
@@ -697,11 +704,16 @@
     const rev=all.reduce((s,l)=>s+(Number(l.monto)||0),0);
     const ventas=all.filter(l=>Number(l.monto)>0).length;
     const T = resp
-      ? {tot:'Leads que contestaron', costo:'Costo x lead que contesta', verbo:'contesta', gana:'leads que contestan'}
-      : {tot:'Leads calificados',     costo:'Costo x lead calificado',   verbo:'califica', gana:'leads calificados'};
+      ? {costo:'Costo x lead que contesta', verbo:'contesta', gana:'leads que contestan'}
+      : {costo:'Costo x lead calificado',   verbo:'califica', gana:'leads calificados'};
+    // Las dos etapas se muestran siempre: contestar es automático, calificar es del vendedor.
+    const nResp=all.filter(l=>l.respondio).length;
+    const nCal =all.filter(l=>l.status==='qualified'||l.status==='converted').length;
     box.innerHTML=
-      '<div class="qc"><span class="ql">'+T.tot+'</span><b>'+q+'</b>'+
-        '<small>'+(q/n*100).toFixed(1)+'% de '+n+' recibidos</small></div>'+
+      (window.__hasResp?'<div class="qc"><span class="ql">Te escribieron</span><b>'+nResp+'</b>'+
+        '<small>'+(nResp/n*100).toFixed(1)+'% de '+n+' · automático</small></div>':'')+
+      '<div class="qc"><span class="ql">Calificados</span><b>'+nCal+'</b>'+
+        '<small>'+(nCal/n*100).toFixed(1)+'% de '+n+' · lo marca el vendedor</small></div>'+
       '<div class="qc hot"><span class="ql">'+T.costo+'</span><b>'+cpq+'</b>'+
         '<small>el CPL de '+cpl+' solo mide el formulario</small></div>'+
       (rev>0?
@@ -799,8 +811,8 @@
     /* "Respondieron" va de primero y aparte: es lo único que un vendedor necesita
        ver al abrir. Un cliente que escribió y sigue sin cerrarse es plata parada. */
     let chips='<button class="chip'+(filtro==='respondieron'?' on':'')+'" onclick="setFiltro(\'respondieron\')">'
-      +'respondieron'+(nResp?' <b>'+nResp+'</b>':'')+'</button><span class="fsep"></span>';
-    chips+=['todos'].concat(STATUSES).map(e=>'<button class="chip'+(filtro===e?' on':'')+'" onclick="setFiltro(\''+e+'\')">'+e+'</button>').join('');
+      +'Te escribieron'+(nResp?' <b>'+nResp+'</b>':'')+'</button><span class="fsep"></span>';
+    chips+=['todos'].concat(STATUSES).map(e=>'<button class="chip'+(filtro===e?' on':'')+'" onclick="setFiltro(\''+e+'\')">'+eti(e)+'</button>').join('');
     document.getElementById('filtros').innerHTML=chips;
 
     let rows=base.slice();
@@ -853,7 +865,7 @@
     const nombre=((l.nombre||'')+' '+(l.apellido||'')).trim()||'(sin nombre)';
     const ini=nombre.split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     const wa=String(l.celular||'').replace(/[^0-9]/g,'');
-    const opts=STATUSES.map(o=>'<option value="'+o+'"'+(o===e?' selected':'')+'>'+o+'</option>').join('');
+    const opts=STATUSES.map(o=>'<option value="'+o+'"'+(o===e?' selected':'')+'>'+eti(o)+'</option>').join('');
     /* La tarjeta se ordena por lo que el vendedor necesita, en ese orden:
        quién es · si contestó y qué dijo · cómo escribirle. Lo demás (correo,
        fecha, nombre del anuncio) baja a una línea gris: sirve de contexto,
