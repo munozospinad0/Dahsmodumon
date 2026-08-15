@@ -111,6 +111,7 @@
   td .bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--vio2),var(--lila))}
   .cchip{display:inline-block;font-size:.66rem;font-weight:800;padding:4px 12px;border-radius:20px;white-space:nowrap}
   .cchip.b2c{background:#fff1e2;color:#c05e00}.cchip.b2b{background:#ece7ff;color:var(--vio)}.cchip.aw{background:#f3eeff;color:#7a5cd6}
+  .cchip.wa{background:#e7f9ef;color:#0f7a41}
   .num{font-weight:700;font-size:.88rem;letter-spacing:-.01em}
   .num.hot{color:var(--converted)}
   .pvhint{font-size:.72rem;color:#9a94bd;margin:12px 4px 6px 16px;display:flex;align-items:center;gap:7px;font-weight:600}
@@ -371,7 +372,7 @@
     <div class="qbox" id="qualityBox"></div>
     <div class="qalert" id="qualityAlert"></div>
     <div class="tcard">
-      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r">Leads</th><th class="r">CPL</th><th class="r qh qresp" title="El cliente respondió el WhatsApp. Es automático: nadie tiene que marcarlo.">Contestan</th><th class="r qh" title="El vendedor lo marcó como buen prospecto en el embudo.">Califican</th><th class="r qh" title="Cuánto cuesta un lead que de verdad sirve, sobre la etapa más profunda con datos.">Costo x útil</th><th class="r qh qv">Vendido</th><th class="r qh qv">Retorno</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="13"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
+      <div class="twrap"><table id="adsTable"><thead><tr><th>Anuncio</th><th>Campaña</th><th class="r">Gasto</th><th class="r" title="Leads en las campañas de formulario; conversaciones de WhatsApp en las de mensajes.">Resultados</th><th class="r">Costo</th><th class="r qh qresp" title="El cliente respondió el WhatsApp. Es automático: nadie tiene que marcarlo.">Contestan</th><th class="r qh" title="El vendedor lo marcó como buen prospecto en el embudo.">Califican</th><th class="r qh" title="Cuánto cuesta un lead que de verdad sirve, sobre la etapa más profunda con datos.">Costo x útil</th><th class="r qh qv">Vendido</th><th class="r qh qv">Retorno</th><th class="r">CTR</th><th class="r">Impr.</th><th class="r"></th></tr></thead><tbody><tr><td colspan="13"><div class="state" style="padding:20px">Cargando…</div></td></tr></tbody></table></div>
       <div class="pvhint"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Toca un anuncio para ver su preview real de Facebook</div>
     </div>
   </section>
@@ -575,22 +576,28 @@
     }).catch(e=>{ document.getElementById('camps').innerHTML='<div class="state">'+esc(e.message)+'</div>'; });
 
     api('level=ad&'+dp).then(d=>{
-      const rows=d.map(a=>({id:a.ad_id,name:a.ad_name,camp:a.campaign_name,spend:Number(a.spend)||0,imp:Number(a.impressions)||0,ctr:Number(a.ctr)||0,leads:leadsOf(a)})).sort((x,y)=>y.spend-x.spend).slice(0,25);
+      const rows=d.map(a=>({id:a.ad_id,name:a.ad_name,camp:a.campaign_name,spend:Number(a.spend)||0,imp:Number(a.impressions)||0,ctr:Number(a.ctr)||0,leads:leadsOf(a),conv:convOf(a)})).sort((x,y)=>y.spend-x.spend).slice(0,25);
+      rows.forEach(a=>{ a.res = kindOf(a.camp)[0]==='wa' ? a.conv : a.leads; });
       window.__adRows=rows; paintAds();
-      // Barras: leads por anuncio (o CTR si aún no hay leads)
-      const withLeads=rows.filter(a=>a.leads>0).slice(0,7);
+      // Barras: resultados por anuncio (o CTR si todavía no hay ninguno)
+      const withLeads=rows.filter(a=>a.res>0).slice(0,7);
       const src=withLeads.length?withLeads:rows.slice(0,7);
       const useLeads=withLeads.length>0;
-      mkChart('adbars',{type:'bar',data:{labels:src.map(a=>a.name.length>26?a.name.slice(0,25)+'…':a.name),datasets:[{label:useLeads?'Leads':'CTR %',data:src.map(a=>useLeads?a.leads:a.ctr),backgroundColor:src.map((_,i)=>CPAL[i%CPAL.length]),borderRadius:8}]},
+      mkChart('adbars',{type:'bar',data:{labels:src.map(a=>a.name.length>26?a.name.slice(0,25)+'…':a.name),datasets:[{label:useLeads?'Resultados':'CTR %',data:src.map(a=>useLeads?a.res:a.ctr),backgroundColor:src.map((_,i)=>CPAL[i%CPAL.length]),borderRadius:8}]},
         options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:useLeads?1:undefined,font:{size:10}},grid:{color:'rgba(62,42,155,.06)'}},y:{ticks:{font:{size:9.5}},grid:{display:false}}}}});
     }).catch(e=>{ document.querySelector('#adsTable tbody').innerHTML='<tr><td colspan="7"><div class="state" style="padding:18px">'+esc(e.message)+'</div></td></tr>'; });
 
     api('level=account&daily=1&'+(preset==='today'||preset==='yesterday'?'preset=last_7d':dp)).then(d=>{
-      const labels=d.map(x=>String(x.date_start).slice(5)), spend=d.map(x=>Number(x.spend)||0), leads=d.map(x=>leadsOf(x));
-      mkChart('daily',{data:{labels:labels,datasets:[
+      const labels=d.map(x=>String(x.date_start).slice(5)), spend=d.map(x=>Number(x.spend)||0), leads=d.map(x=>leadsOf(x)), convs=d.map(x=>convOf(x));
+      /* La línea de conversaciones solo aparece si de verdad hay: en una cuenta
+         sin campañas de mensajes sería una raya en cero, ruido puro. */
+      const series=[
         {type:'bar',label:'Gasto (USD)',data:spend,backgroundColor:'rgba(91,63,224,.5)',hoverBackgroundColor:'rgba(91,63,224,.75)',borderRadius:7,yAxisID:'y'},
         {type:'line',label:'Leads',data:leads,borderColor:'#FE881C',backgroundColor:'#FE881C',borderWidth:3,tension:.35,pointRadius:5,pointHoverRadius:7,yAxisID:'y1'}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11,weight:'bold'}}}},
+      ];
+      if(convs.some(v=>v>0)) series.push(
+        {type:'line',label:'Conversaciones WhatsApp',data:convs,borderColor:'#25D366',backgroundColor:'#25D366',borderWidth:3,borderDash:[6,4],tension:.35,pointRadius:4,pointHoverRadius:6,yAxisID:'y1'});
+      mkChart('daily',{data:{labels:labels,datasets:series},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11,weight:'bold'}}}},
         scales:{y:{beginAtZero:true,ticks:{font:{size:10}},grid:{color:'rgba(62,42,155,.06)'}},y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{stepSize:1,font:{size:10}}},x:{ticks:{font:{size:10}},grid:{display:false}}}}});
     }).catch(()=>{});
   }
@@ -598,7 +605,7 @@
   function setPreset(p){ preset=p; renderPresets(); loadMetrics(); }
 
   /* ============ AUDIENCIA por campaña ============ */
-  const AUDF=[['all','Todas'],['b2c','Hogar (B2C)'],['b2b','Proyectos (B2B)'],['aw','Awareness']];
+  const AUDF=[['all','Todas'],['b2c','Hogar (B2C)'],['b2b','Proyectos (B2B)'],['wa','Mensajes (WhatsApp)'],['aw','Awareness']];
   let audSel='all', audRaw={age:[],plc:[],reg:[]};
   function loadAudience(dp){
     Promise.all([
@@ -695,6 +702,7 @@
     if(tbl) tbl.classList.toggle('hasresp', !!window.__hasResp);
     host.innerHTML=rows.length?rows.map(a=>{
       const k=kindOf(a.camp), q=Q?(Q[a.name]||{n:0,q:0,r:0}):null;
+      const esWa=k[0]==='wa', res=(a.res!=null?a.res:a.leads);   // se calcula una sola vez, al cargar
       // color según qué tan bien va esa etapa; el cero va en gris, no en rojo
       const tono=(v,tot)=>{ if(!tot) return ''; const p=v/tot*100;
         return v===0?'qzero':(p>=15?'qgood':(p>=5?'qmid':'qlow')); };
@@ -717,7 +725,11 @@
           '<td class="r num qv '+(roas>=3?'qgood':(roas>0?'qmid':'qzero'))+'">'+(roas?roas.toFixed(1)+'x':'—')+'</td>';
       return '<tr class="clk" onclick="openPv(\''+esc(a.id)+'\',\''+esc(a.name).replace(/'/g,'&#39;')+'\')"><td><div class="an" title="'+esc(a.name)+'">'+esc(a.name)+'</div><div class="bar"><i style="width:'+Math.max(2,Math.round(a.spend/mx*100))+'%"></i></div></td>'
       +'<td><span class="cchip '+k[0]+'">'+esc(k[1])+'</span></td>'
-      +'<td class="r num">'+money(a.spend)+'</td><td class="r num'+(a.leads?' hot':'')+'">'+intf(a.leads)+'</td><td class="r num">'+(a.leads?money(a.spend/a.leads):'—')+'</td>'
+      /* Un anuncio de la campaña de mensajes no produce leads: producía "0" en esta
+         columna y parecía dinero tirado. Cada anuncio se cuenta por SU resultado. */
+      +'<td class="r num">'+money(a.spend)+'</td>'
+      +'<td class="r num'+(res?' hot':'')+'">'+intf(res)+(esWa&&res?' <small>conv.</small>':'')+'</td>'
+      +'<td class="r num">'+(res?money(a.spend/res):'—')+'</td>'
       +cal+vta
       +'<td class="r num">'+a.ctr.toFixed(2)+'%</td><td class="r num">'+intf(a.imp)+'</td>'
       +'<td class="r"><button class="seebtn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Ver</button></td></tr>';}).join('')
