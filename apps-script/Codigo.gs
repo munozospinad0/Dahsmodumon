@@ -35,6 +35,45 @@ const RESPFEC_ALIASES  = ['fecha_respuesta','respondio_el','fecha_de_respuesta']
 const RESPTXT_DEFAULT  = 'ultimo_mensaje';
 const RESPTXT_ALIASES  = ['ultimo_mensaje','último_mensaje','mensaje','ultima_respuesta'];
 
+/* ═══════════════════════ MENÚ EN LA PLANILLA ═══════════════════════
+   Todo lo que hay que ejecutar a mano vive acá, como menú de la hoja.
+   Nadie debería tener que entrar al editor de scripts, buscar la función en
+   un desplegable y darle Ejecutar: ahí es donde esto se rompe siempre, y de
+   la peor forma, porque ejecutar la función equivocada no da ningún error.
+   Este menú aparece solo al abrir la planilla; no hay que instalarlo. */
+function onOpen(){
+  SpreadsheetApp.getUi().createMenu('modu.mon')
+    .addItem('1. Activar saludo automático', 'menuActivarSaludo')
+    .addItem('2. Revisar cómo está todo',    'menuRevisar')
+    .addSeparator()
+    .addItem('Apagar saludo automático',     'menuApagarSaludo')
+    .addToUi();
+}
+
+function menuActivarSaludo(){
+  const ui=SpreadsheetApp.getUi();
+  const r=ui.alert('Activar saludo automático',
+     'Desde ahora, cada lead nuevo recibe el mensaje de WhatsApp solo y pasa a "Contactado".\n\n'
+    +'Los leads que YA están en la hoja no reciben nada: mandarle la plantilla a cientos de '
+    +'contactos viejos de golpe hace que WhatsApp castigue el número.\n\n¿Lo activo?',
+    ui.ButtonSet.YES_NO);
+  if(r!==ui.Button.YES) return;
+  ui.alert('Saludo automático', saludoInstalar(), ui.ButtonSet.OK);
+}
+
+function menuApagarSaludo(){
+  const n=saludoDesinstalar();
+  setConfig_('autogreet','off');
+  SpreadsheetApp.getUi().alert('Saludo automático',
+    'Apagado. Los leads nuevos ya no reciben mensaje solos ('+n+' activador(es) eliminado(s)).',
+    SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+function menuRevisar(){
+  const ui=SpreadsheetApp.getUi();
+  ui.alert('Cómo está todo', saludoDiagnostico(), ui.ButtonSet.OK);
+}
+
 function META_TOKEN(){ return PropertiesService.getScriptProperties().getProperty('META_TOKEN') || ''; }
 function colMap_(sh){ const h=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(x=>String(x).trim()); const m={}; h.forEach((x,i)=>m[x]=i+1); return {h,m}; }
 function statusKey_(m){ const keys=Object.keys(m); for(const a of STATUS_ALIASES){ const k=keys.find(x=>String(x).toLowerCase().trim()===a); if(k) return k; } return null; }
@@ -277,12 +316,15 @@ function saludoInstalar(){
     Logger.log(m); return m;
   }
   saludoDesinstalar();
+  setConfig_('autogreet','on');    // si quedó apagado desde el dashboard, activarlo aquí también
   const s=saludoSembrar_();
   ScriptApp.newTrigger('autoGreetNewLeads').timeBased().everyMinutes(SALUDO_CADA_MIN).create();
   const enviados=autoGreetNewLeads();
-  const m='Listo. Revisa cada '+SALUDO_CADA_MIN+' min. '
-    +s.semilla+' leads viejos quedaron marcados como semilla (NO se les escribió, así se protege el número), '
-    +'y de los pendientes se saludó a '+enviados+'.';
+  const m='Activado.\n\n'
+    +'• Revisa cada '+SALUDO_CADA_MIN+' minutos.\n'
+    +'• '+s.semilla+' leads viejos quedaron marcados y NO se les escribió (así se protege el número).\n'
+    +'• Pendientes recientes saludados ahora: '+enviados+' de '+s.pendientes+'.\n\n'
+    +'De acá en adelante, cada lead nuevo recibe el mensaje solo y pasa a Contactado.';
   Logger.log(m); return m;
 }
 
@@ -325,21 +367,24 @@ function saludoSembrar_(){
 function saludoDiagnostico(){
   const props=PropertiesService.getScriptProperties();
   const trig=ScriptApp.getProjectTriggers().filter(t=>t.getHandlerFunction()==='autoGreetNewLeads').length;
-  const cuenta={};
+  const cuenta={}; let hojas=0, sinColumna=0;
   SpreadsheetApp.getActiveSpreadsheet().getSheets().forEach(sh=>{
     if(sh.getLastRow()<2) return; const {m}=colMap_(sh); if(!isLeadSheet_(m)) return;
-    const gc=m['wa_greeted']; if(!gc) return;
+    hojas++;
+    const gc=m['wa_greeted'];
+    if(!gc){ sinColumna++; return; }        // todavía no corrió nunca en esta hoja
     sh.getDataRange().getValues().slice(1).forEach(row=>{
       const v=String(row[gc-1]||'').trim();
-      const k=!v?'(vacío)':v.split(' ')[0].replace(/:$/,'');
+      const k=!v?'todavía sin tocar':(/^sent/i.test(v)?'saludados':(/^error/i.test(v)?'con error':v.split(' ')[0]));
       cuenta[k]=(cuenta[k]||0)+1;
     });
   });
-  const m='activador instalado: '+(trig?'SÍ ('+trig+')':'NO')
-    +' | WA_TOKEN: '+(props.getProperty('WA_TOKEN')?'sí':'FALTA')
-    +' | WA_PHONE_NUMBER_ID: '+(props.getProperty('WA_PHONE_NUMBER_ID')?'sí':'FALTA')
-    +' | interruptor: '+(getConfig_('autogreet')==='off'?'APAGADO':'encendido')
-    +' | rastro: '+JSON.stringify(cuenta);
+  const m='Saludo automático: '+(trig?'ENCENDIDO':'APAGADO — nunca se activó')
+    +'\nInterruptor del dashboard: '+(getConfig_('autogreet')==='off'?'apagado':'encendido')
+    +'\nCredenciales de WhatsApp: '+(props.getProperty('WA_TOKEN')?'ok':'FALTA WA_TOKEN')
+    +', '+(props.getProperty('WA_PHONE_NUMBER_ID')?'ok':'FALTA WA_PHONE_NUMBER_ID')
+    +'\nHojas de leads: '+hojas+(sinColumna?' ('+sinColumna+' sin estrenar)':'')
+    +'\nCómo quedaron los leads: '+(Object.keys(cuenta).length?JSON.stringify(cuenta):'ninguno procesado todavía');
   Logger.log(m); return m;
 }
 
