@@ -171,6 +171,21 @@
   .spin2{width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--vio);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 14px}
   footer{text-align:center;padding:0 0 36px;color:#9a94bd;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 
+  /* ---- conversacion completa (hilo de WhatsApp) ---- */
+  .cv-ov{position:fixed;inset:0;background:rgba(22,15,56,.45);z-index:60;display:grid;place-items:center;padding:18px}
+  .cv{background:#fff;border-radius:18px;width:min(440px,94vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 30px 70px rgba(0,0,0,.25)}
+  .cv h4{padding:16px 18px 10px;font-size:.95rem;letter-spacing:-.01em}
+  .cv .cvb{overflow-y:auto;padding:6px 14px 14px;display:flex;flex-direction:column;gap:7px}
+  .cv .msg{max-width:82%;padding:9px 12px;border-radius:13px;font-size:.8rem;line-height:1.4;word-wrap:break-word}
+  .cv .msg.in{background:#efecf8;align-self:flex-start;border-bottom-left-radius:4px}
+  .cv .msg.out{background:#dcfce7;align-self:flex-end;border-bottom-right-radius:4px}
+  .cv .msg small{display:block;font-size:.62rem;opacity:.55;margin-top:3px}
+  .cv .cvfoot{padding:10px 14px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .cv .cvfoot a{font-size:.78rem;font-weight:800;color:#3f24a6;text-decoration:none}
+  .cv .cvfoot button{border:0;background:#efecf8;border-radius:10px;padding:8px 14px;font-weight:800;cursor:pointer;font-family:inherit}
+  .cv .cvempty{padding:10px 16px 16px;font-size:.8rem;color:#777;line-height:1.5}
+  .respw{cursor:pointer}
+
   /* ---- modal preview ---- */
   tbody tr.clk{cursor:pointer}
   #pv{position:fixed;inset:0;background:rgba(22,15,56,.66);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
@@ -1034,7 +1049,7 @@
     return '<div class="lead" data-e="'+esc(e)+'">'
       +'<div class="lhead"><div class="av">'+esc(ini)+'</div><div style="min-width:0"><h3>'+esc(nombre)+'</h3>'
         +'<div class="meta">'+esc(fechaCorta(l.fecha))+(l.extra?' · '+esc(l.extra):'')+'</div></div></div>'
-      +(l.respondio?('<div class="respw" title="'+esc(textoResp(l.resp_texto))+'">'
+      +(l.respondio?('<div class="respw" onclick="convOpen(\''+esc(l.id)+'\')" title="Ver la conversación completa">'
         +'<span class="respb">Respondió</span>'
         +(l.resp_texto?'<span class="respt'+(esFraseReal(l.resp_texto)?'':' vago')+'">'
             +esc(textoResp(l.resp_texto))+'</span>':'')
@@ -1051,10 +1066,48 @@
           +'<div class="vsp-r"><span>¿Qué compró?</span><input class="vsp-txt" type="text" id="vp-'+esc(l.id)+'" placeholder="Cocina, clóset, mueble…" value="'+esc(l.producto||'')+'" onkeydown="if(event.key===\'Enter\')venta(\''+esc(l.id)+'\')"></div>'
           +'<button type="button" class="vsp-save" onclick="venta(\''+esc(l.id)+'\')">Guardar venta</button>'
         +'</div></span>'
-      +'<span class="save" id="sv-'+esc(l.id)+'"></span>'+(l.celular?'<button class="wabtn" onclick="sendInit(this,\''+esc(l.id)+'\')" title="Enviar saludo inicial por WhatsApp">'+IC.send+'Saludo</button>':'')+'</div>'
+      +'<span class="save" id="sv-'+esc(l.id)+'"></span>'
+      +(l.celular?'<button class="wabtn" onclick="convOpen(\''+esc(l.id)+'\')" title="Ver la conversación completa">'+IC.phone+'Chat</button>':'')
+      +(l.celular?'<button class="wabtn" onclick="sendInit(this,\''+esc(l.id)+'\')" title="Enviar saludo inicial por WhatsApp">'+IC.send+'Saludo</button>':'')+'</div>'
       +(l.capi?'<div class="capi">'+IC.send+esc(l.capi)+'</div>':'')
       +'</div>';
   }
+
+  /* La conversación completa del lead: lo que escribió y lo que le respondimos.
+     El webhook guarda ambos sentidos en la hoja "Conversaciones" — desde que se
+     encendió: lo anterior vive solo en el teléfono y Meta no lo entrega. */
+  async function convOpen(id){
+    const l=(cache[tipo]||[]).find(x=>String(x.id)===String(id));
+    const wa=String((l&&l.celular)||'').replace(/[^0-9]/g,'');
+    if(!wa) return;
+    cerrarConv();
+    const ov=document.createElement('div'); ov.className='cv-ov'; ov.id='cv-ov';
+    ov.onclick=e=>{ if(e.target===ov) cerrarConv(); };
+    const nombre=l?((l.nombre||'')+' '+(l.apellido||'')).trim():'';
+    ov.innerHTML='<div class="cv"><h4>'+esc(nombre||telBonito(l.celular))+'</h4>'
+      +'<div class="cvb" id="cv-b"><div class="cvempty">Cargando…</div></div>'
+      +'<div class="cvfoot"><a href="https://wa.me/'+wa+'" target="_blank" rel="noopener">Abrir en WhatsApp</a>'
+      +'<button type="button" onclick="cerrarConv()">Cerrar</button></div></div>';
+    document.body.appendChild(ov);
+    try{
+      const j=await gas({action:'conversaciones',phone:wa});
+      // Solo filas del hilo: si el Apps Script publicado aún es el viejo, la acción
+      // desconocida devuelve la lista de leads y esto la descartaría en vez de pintarla.
+      const msgs=(Array.isArray(j)?j:(j.data||[])).filter(m=>m&&m.direccion);
+      const b=document.getElementById('cv-b'); if(!b) return;
+      if(!msgs.length){
+        b.innerHTML='<div class="cvempty">Todavía no hay mensajes guardados de este lead. El hilo se registra desde que se activó la conversación completa — lo anterior quedó solo en el teléfono.</div>';
+        return;
+      }
+      b.innerHTML=msgs.map(m=>'<div class="msg '+(m.direccion==='saliente'?'out':'in')+'">'
+        +esc(m.texto||'')+'<small>'+esc(m.fecha||'')+'</small></div>').join('');
+      b.scrollTop=b.scrollHeight;
+    }catch(err){
+      const b=document.getElementById('cv-b');
+      if(b) b.innerHTML='<div class="cvempty">No se pudo cargar: '+esc(err.message)+'</div>';
+    }
+  }
+  function cerrarConv(){ const o=document.getElementById('cv-ov'); if(o) o.remove(); }
 
   /* Registrar cuánto se vendió. Al guardar un monto el lead pasa a "converted"
      (vender es la conversión), así que se refresca embudo y calidad. */

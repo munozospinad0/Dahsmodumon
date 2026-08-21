@@ -126,7 +126,9 @@ function doGet(e){
   try{
     if(p.action==='update')  return out_(p.callback, updateLead_(p.id,p.status));
     if(p.action==='venta')   return out_(p.callback, setMonto_(p.id,p.monto,p.producto));
-    if(p.action==='inbound') return out_(p.callback, inbound_(p.phone,p.text,p.ts));
+    if(p.action==='inbound') return out_(p.callback, inbound_(p.phone,p.text,p.ts,p.msg_id));
+    if(p.action==='wa_log')  return out_(p.callback, waLog_(p.phone,p.text,p.ts,p.dir,p.msg_id));
+    if(p.action==='conversaciones') return out_(p.callback, getConv_(p.phone));
     if(p.action==='config')  return out_(p.callback, {autogreet: getConfig_('autogreet')||'on'});
     if(p.action==='setconfig') return out_(p.callback, setConfig_(p.k,p.v));
     return out_(p.callback, getLeads_());
@@ -169,9 +171,65 @@ function getLeads_(){
    persona. Marca la fila del lead con respondió / cuándo / qué dijo, y si el lead
    seguía en "created" lo sube a "contacted": si escribió, ya hubo contacto real.
    Es la señal de calidad más honesta que tenemos — mejor que cualquier estimación. */
-function inbound_(phone,text,ts){
+/* ═══════════ CONVERSACIONES: el hilo COMPLETO de WhatsApp por lead ═══════════
+   'entrante' = escribió el cliente · 'saliente' = le respondió Modumon (desde el
+   teléfono, gracias a la coexistencia, o por API: ambos llegan como "echo" al
+   webhook). El dashboard lo muestra como chat para ver el avance del lead sin
+   tener que abrir el teléfono. El historial arranca el día que esto se enciende:
+   lo anterior vive solo en el teléfono y Meta no lo entrega por API. */
+const HOJA_CONV = 'Conversaciones';
+
+function hojaConv_(){
+  const ss=SpreadsheetApp.getActiveSpreadsheet();
+  let sh=ss.getSheetByName(HOJA_CONV);
+  if(!sh){ sh=ss.insertSheet(HOJA_CONV); sh.appendRow(['fecha','telefono','direccion','texto','msg_id']); }
+  return sh;
+}
+
+function waLog_(phone,text,ts,dir,msgId){
   const t8=tel8_(phone);
   if(!t8) return {ok:false,error:'telefono invalido'};
+  const sh=hojaConv_();
+  // Meta REINTENTA el webhook cuando tardamos: sin dedup por msg_id el hilo sale repetido.
+  if(msgId){
+    const n=sh.getLastRow();
+    if(n>1){
+      const desde=Math.max(2,n-199);
+      const ids=sh.getRange(desde,5,n-desde+1,1).getValues();
+      for(const r of ids) if(String(r[0])===String(msgId)) return {ok:true,repetido:true};
+    }
+  }
+  const cuando= ts ? new Date(Number(ts)*1000) : new Date();
+  sh.appendRow([
+    Utilities.formatDate(cuando,'America/Panama','yyyy-MM-dd HH:mm:ss'),
+    t8, dir==='saliente'?'saliente':'entrante',
+    String(text||'').slice(0,500), String(msgId||'')
+  ]);
+  return {ok:true,telefono:t8,direccion:dir||'entrante'};
+}
+
+function getConv_(phone){
+  const sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_CONV);
+  if(!sh||sh.getLastRow()<2) return [];
+  const t8=phone?tel8_(phone):'';
+  const data=sh.getDataRange().getValues();
+  const out=[];
+  for(let r=1;r<data.length;r++){
+    const f=data[r][0], tel=data[r][1], dir=data[r][2], txt=data[r][3];
+    if(t8 && tel8_(tel)!==t8) continue;
+    out.push({
+      fecha: f instanceof Date ? Utilities.formatDate(f,'America/Panama','yyyy-MM-dd HH:mm') : String(f),
+      telefono:String(tel), direccion:String(dir), texto:String(txt)
+    });
+  }
+  return out;
+}
+
+function inbound_(phone,text,ts,msgId){
+  const t8=tel8_(phone);
+  if(!t8) return {ok:false,error:'telefono invalido'};
+  // Primero al hilo: la conversación completa vive en su propia hoja.
+  waLog_(phone,text,ts,'entrante',msgId);
   const cuando = ts ? new Date(Number(ts)*1000) : new Date();
   const ss=SpreadsheetApp.getActiveSpreadsheet();
   for(const sh of ss.getSheets()){

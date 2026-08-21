@@ -1,13 +1,15 @@
-// Webhook de WhatsApp — recibe las RESPUESTAS de los clientes y las guarda en la hoja.
+// Webhook de WhatsApp — guarda la CONVERSACIÓN COMPLETA en la hoja, en ambos sentidos:
+//   entrante  = lo que escribe el cliente (campo `messages`)
+//   saliente  = lo que responde Modumon — desde el teléfono (coexistencia) o por API —
+//               que llega como "echo" (campos `smb_message_echoes` / `message_echoes`)
 //
 // Sin esto las respuestas viven solo dentro del teléfono: nadie puede saber si un lead
-// contestó, y el dashboard no puede mostrar la única señal de calidad que importa de
-// verdad ("¿este lead respondió o no?").
+// contestó ni qué le respondieron, y el dashboard no puede mostrar el avance real.
 //
 // Configuración en Meta (App -> WhatsApp -> Configuración -> Webhook):
 //   URL de devolución:  https://dash-modumon.vercel.app/api/wa-webhook
 //   Token de verificación: el valor de WA_VERIFY_TOKEN en Vercel
-//   Campos suscritos: messages
+//   Campos suscritos: messages · smb_message_echoes · message_echoes
 //
 // Variables en Vercel: WA_VERIFY_TOKEN · APPS_SCRIPT_URL · APPS_SCRIPT_KEY
 
@@ -41,16 +43,11 @@ function textoDe(msg) {
   return 'respondió por WhatsApp';
 }
 
-// Guarda una respuesta en la hoja vía el Apps Script.
-async function guardar(phone, text, ts) {
+// Llama al Apps Script con cualquier acción. 8 s de techo: Meta espera respuesta
+// rápida y reintenta si tardamos (por eso el Apps Script deduplica por msg_id).
+async function gas(params) {
   if (!GAS_URL || !GAS_KEY) return;
-  const p = new URLSearchParams({
-    key: GAS_KEY, action: 'inbound',
-    phone: String(phone || ''),
-    text: String(text || '').slice(0, 300),   // no guardamos conversaciones enteras
-    ts: String(ts || ''),
-  });
-  // 8 s de techo: Meta espera respuesta rápida y reintenta si tardamos.
+  const p = new URLSearchParams(Object.assign({ key: GAS_KEY }, params));
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 8000);
   try {
@@ -82,11 +79,27 @@ module.exports = async function handler(req, res) {
     for (const entry of (body && body.entry) || []) {
       for (const ch of entry.changes || []) {
         const v = ch.value || {};
+        // ENTRANTES: lo que escribe el cliente. Actualiza la ficha del lead Y el hilo.
         for (const msg of v.messages || []) {
-          // solo mensajes ENTRANTES (los que manda el cliente)
           const from = String(msg.from || '').replace(/[^0-9]/g, '');
           if (!from) continue;
-          tareas.push(guardar(from, textoDe(msg), msg.timestamp));
+          tareas.push(gas({
+            action: 'inbound', phone: from,
+            text: String(textoDe(msg)).slice(0, 500),
+            ts: String(msg.timestamp || ''), msg_id: String(msg.id || ''),
+          }));
+        }
+        // SALIENTES: lo que responde Modumon. En coexistencia, lo que Verónica manda
+        // desde el teléfono llega como echo — sin esto el hilo solo tendría un lado.
+        const ecos = [].concat(v.message_echoes || [], v.smb_message_echoes || []);
+        for (const eco of ecos) {
+          const to = String(eco.to || '').replace(/[^0-9]/g, '');
+          if (!to) continue;
+          tareas.push(gas({
+            action: 'wa_log', dir: 'saliente', phone: to,
+            text: String(textoDe(eco)).slice(0, 500),
+            ts: String(eco.timestamp || ''), msg_id: String(eco.id || ''),
+          }));
         }
       }
     }

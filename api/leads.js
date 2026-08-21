@@ -18,6 +18,7 @@ module.exports = async function handler(req, res) {
   else if (action === 'venta') { params.set('action', 'venta'); params.set('id', id); params.set('monto', monto); params.set('producto', producto); }
   else if (action === 'setconfig') { params.set('action', 'setconfig'); params.set('k', k); params.set('v', v); }
   else if (action === 'config') { params.set('action', 'config'); }
+  else if (action === 'conversaciones') { params.set('action', 'conversaciones'); if (req.query.phone) params.set('phone', String(req.query.phone)); }
 
   try {
     const r = await fetch(GAS_URL + '?' + params.toString(), { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (dash-modumon)' } });
