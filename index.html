@@ -161,8 +161,14 @@
   .tag.adtag{background:#eef1fb;color:#4b4b8a}
   /* El pie lleva 4 cosas (estado, venta, aviso de guardado, saludo) y la tarjeta
      mide ~300px: sin wrap el último botón se salía del borde. */
-  .foot{display:flex;align-items:center;gap:10px;row-gap:9px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+  /* El pie tiene dos trabajos distintos y por eso son dos filas: arriba en qué estado
+     está el lead (y su venta), abajo cómo hablarle. Antes iba todo en una fila con
+     flex-wrap y al sumar "Chat" quedaba desparejo, con los botones huérfanos. */
+  .foot{display:flex;flex-direction:column;gap:10px;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
   .foot>*{min-width:0}
+  .frow{display:flex;align-items:center;gap:10px;row-gap:9px;flex-wrap:wrap;min-width:0}
+  .wacts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .wacts:has(> :only-child){grid-template-columns:1fr}
   select.est{appearance:none;border:0;border-radius:12px;padding:10px 34px 10px 16px;font-weight:800;font-size:.9rem;cursor:pointer;color:#fff;text-transform:capitalize;font-family:inherit;background-repeat:no-repeat;background-position:right 11px center;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white'><path d='M2 4l4 4 4-4z'/></svg>");box-shadow:0 5px 14px rgba(0,0,0,.15)}
   .est[data-e=created]{background-color:var(--created)}.est[data-e=contacted]{background-color:var(--contacted)}.est[data-e=qualified]{background-color:var(--qualified)}.est[data-e=converted]{background-color:var(--converted)}.est[data-e=disqualified]{background-color:var(--disqualified)}
   .save{font-size:.72rem;font-weight:700;color:var(--ink);opacity:0;transition:.3s}.save.show{opacity:1}.save.ok{color:var(--converted)}.save.err{color:var(--disqualified)}
@@ -444,7 +450,10 @@
     .watoggle input:checked+.tsw{background:var(--converted)}
     .watoggle input:checked+.tsw:after{transform:translateX(20px)}
     /* margin-left:auto lo manda a la derecha si cabe, y lo deja envolver si no */
-    .wabtn{border:0;background:var(--converted);color:#fff;padding:8px 12px;border-radius:10px;font-size:.75rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;margin-left:auto;transition:.2s;white-space:nowrap;flex:none}
+    .wabtn{border:0;background:var(--converted);color:#fff;padding:10px 12px;border-radius:11px;font-size:.78rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:.2s;white-space:nowrap}
+    .wabtn.ghost{background:#eef6ff;color:#1f4fa8;border:1px solid #cfe0fa}
+    .wabtn.ghost svg{stroke:#1f4fa8}
+    .wabtn.ghost:hover{background:#e2eeff}
     .wabtn:hover{filter:brightness(1.08)}.wabtn:disabled{opacity:.6;cursor:default}
     .wabtn svg{width:13px;height:13px;stroke:#fff;fill:none}
     </style>
@@ -1057,7 +1066,7 @@
       +(falla?'<div class="warn">'+IC.warn+'<span>'+esc(falla)+'</span></div>':'')
       +(l.celular?'<a class="waline" href="https://wa.me/'+wa+'" target="_blank" rel="noopener">'+IC.phone+esc(telBonito(l.celular))+'</a>':'')
       +'<div class="sub2">'+(l.correo?esc(l.correo)+' · ':'')+(l.anuncio?esc(l.anuncio):'')+'</div>'
-      +'<div class="foot"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select>'
+      +'<div class="foot"><div class="frow"><select class="est" data-e="'+esc(e)+'" onchange="chg(this,\''+esc(l.id)+'\')">'+opts+'</select>'
       +'<span class="vsell'+(Number(l.monto)>0?' has':'')+'" id="vw-'+esc(l.id)+'">'
         +'<button type="button" class="vsell-t" onclick="sellOpen(\''+esc(l.id)+'\')" title="Registra cuánto y qué compró este lead">'
           +(Number(l.monto)>0?('Vendió <b>'+money(l.monto)+'</b>'+(l.producto?(' · '+esc(l.producto)):'')):'+ Registrar venta')+'</button>'
@@ -1066,9 +1075,11 @@
           +'<div class="vsp-r"><span>¿Qué compró?</span><input class="vsp-txt" type="text" id="vp-'+esc(l.id)+'" placeholder="Cocina, clóset, mueble…" value="'+esc(l.producto||'')+'" onkeydown="if(event.key===\'Enter\')venta(\''+esc(l.id)+'\')"></div>'
           +'<button type="button" class="vsp-save" onclick="venta(\''+esc(l.id)+'\')">Guardar venta</button>'
         +'</div></span>'
-      +'<span class="save" id="sv-'+esc(l.id)+'"></span>'
-      +(l.celular?'<button class="wabtn" onclick="convOpen(\''+esc(l.id)+'\')" title="Ver la conversación completa">'+IC.phone+'Chat</button>':'')
-      +(l.celular?'<button class="wabtn" onclick="sendInit(this,\''+esc(l.id)+'\')" title="Enviar saludo inicial por WhatsApp">'+IC.send+'Saludo</button>':'')+'</div>'
+      +'<span class="save" id="sv-'+esc(l.id)+'"></span></div>'
+      +(l.celular?('<div class="wacts">'
+        +'<button class="wabtn ghost" onclick="convOpen(\''+esc(l.id)+'\')" title="Ver la conversación completa">'+IC.phone+'Ver chat</button>'
+        +'<button class="wabtn" onclick="sendInit(this,\''+esc(l.id)+'\')" title="Enviar saludo inicial por WhatsApp">'+IC.send+'Saludo</button>'
+        +'</div>'):'')+'</div>'
       +(l.capi?'<div class="capi">'+IC.send+esc(l.capi)+'</div>':'')
       +'</div>';
   }
