@@ -14,9 +14,27 @@
     --bg:#f6f4fc;--card:#fff;--line:rgba(62,42,155,.08);
     --created:#8b8fa3;--contacted:#2563eb;--qualified:#FE881C;--converted:#16a34a;--disqualified:#dc2626;
     --sh:0 10px 34px rgba(38,22,110,.08);
+    /* ---- MOVIMIENTO ----
+       Una sola curva de casa, críticamente amortiguada: llega y se queda, sin rebote.
+       Antes había .15s, .16s, .2s, .22s, .25s y .3s sueltas con el ease por defecto:
+       seis velocidades distintas para la misma clase de gesto. */
+    --e:cubic-bezier(.32,.72,0,1);
+    --e-in:cubic-bezier(.4,0,.7,.2);
+    --t:.26s;
+    --t-fast:.13s;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
+  button,select,a,.lead,.tab,.chip{-webkit-tap-highlight-color:transparent}
+  /* Lo que se puede tocar responde al PRESIONAR, no al soltar ni al pasar el mouse.
+     El hover no existe en el celular, que es donde trabajan los vendedores. */
+  .tab,.chip,.btn,.preset,.seebtn,.iconbtn,.lgbtn,.adprev{
+    touch-action:manipulation;transition:transform var(--t-fast) var(--e),
+    background var(--t) var(--e),color var(--t) var(--e),box-shadow var(--t) var(--e)}
+  .tab:active,.chip:active,.btn:active,.preset:active,.seebtn:active,
+  .iconbtn:active,.lgbtn:active,.adprev:active{transform:scale(.96)}
+  .lead:active{transform:scale(.995)}
+  :focus-visible{outline:2.5px solid var(--vio2);outline-offset:3px;border-radius:12px}
   body{font-family:'Sora','Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--dark);-webkit-font-smoothing:antialiased;font-size:16px}
   svg{display:block}
   ::-webkit-scrollbar{height:9px;width:9px}::-webkit-scrollbar-thumb{background:#cfc7f2;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
@@ -36,11 +54,11 @@
   .dot{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.6)}70%{box-shadow:0 0 0 7px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
   .presets{display:flex;gap:8px;flex-wrap:wrap;position:relative;z-index:1;margin-top:24px}
-  .preset{border:1.5px solid rgba(255,255,255,.32);background:rgba(255,255,255,.09);color:#fff;padding:9px 20px;border-radius:26px;font-size:.82rem;font-weight:700;cursor:pointer;transition:.22s;font-family:inherit}
+  .preset{border:1.5px solid rgba(255,255,255,.32);background:rgba(255,255,255,.09);color:#fff;padding:9px 20px;border-radius:26px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:inherit}
   .preset:hover{background:rgba(255,255,255,.2)}
   .preset.on{background:#fff;color:var(--vio);border-color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.18)}
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:14px;margin:22px 0 0;position:relative;z-index:1}
-  .kpi{background:rgba(255,255,255,.12);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:16px 18px;transition:.25s;animation:pop .5s cubic-bezier(.2,.9,.3,1.15) both}
+  .kpi{background:rgba(255,255,255,.12);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:16px 18px;transition:var(--t) var(--e);animation:pop .5s cubic-bezier(.2,.9,.3,1.15) both}
   .kpi:hover{background:rgba(255,255,255,.19);transform:translateY(-2px)}
   .kpi .kt{display:flex;align-items:center;gap:9px;margin-bottom:11px}
   .kpi .ki{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.18);display:grid;place-items:center;flex:none}
@@ -58,7 +76,7 @@
 
   /* ---- campañas ---- */
   .camps{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
-  .camp{border-radius:22px;padding:22px;position:relative;overflow:hidden;background:#fff;box-shadow:var(--sh);transition:.25s}
+  .camp{border-radius:22px;padding:22px;position:relative;overflow:hidden;background:#fff;box-shadow:var(--sh);transition:var(--t) var(--e)}
   .camp:hover{transform:translateY(-4px);box-shadow:0 20px 44px rgba(38,22,110,.14)}
   .camp::before{content:"";position:absolute;left:0;top:0;right:0;height:6px;background:var(--vio)}
   .camp.b2c::before{background:linear-gradient(90deg,var(--org),#ffb469)}
@@ -103,7 +121,7 @@
   th{text-align:left;font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);font-weight:800;padding:14px 16px;border-bottom:2px solid var(--line);white-space:nowrap}
   th.r,td.r{text-align:right}
   td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
-  tbody tr{transition:.15s;cursor:pointer}
+  tbody tr{transition:var(--t-fast) var(--e);cursor:pointer}
   tbody tr:hover td{background:#f8f6ff}
   tbody tr:last-child td{border-bottom:0}
   td .an{font-weight:700;color:var(--dark);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem}
@@ -116,14 +134,14 @@
   .num.hot{color:var(--converted)}
   .pvhint{font-size:.72rem;color:#9a94bd;margin:12px 4px 6px 16px;display:flex;align-items:center;gap:7px;font-weight:600}
   .pvhint svg{width:14px;height:14px;stroke:var(--lila)}
-  .seebtn{border:0;background:var(--pink);color:var(--vio);padding:8px 14px;border-radius:20px;font-size:.74rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:.2s;white-space:nowrap}
+  .seebtn{border:0;background:var(--pink);color:var(--vio);padding:8px 14px;border-radius:20px;font-size:.74rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .seebtn:hover{background:var(--vio);color:#fff}
   .seebtn svg{width:13px;height:13px;stroke:currentColor}
   .pvload{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;color:var(--ink);font-size:.82rem;font-weight:600;text-align:center}
 
   /* ---- CRM ---- */
   .tabs{display:flex;gap:10px;flex-wrap:wrap}
-  .tab{border:0;background:#fff;box-shadow:var(--sh);padding:16px 26px;border-radius:16px;font-weight:800;font-size:1.02rem;color:var(--ink);cursor:pointer;transition:.25s;display:flex;align-items:center;gap:11px;font-family:inherit;letter-spacing:-.01em}
+  .tab{border:0;background:#fff;box-shadow:var(--sh);padding:16px 26px;border-radius:16px;font-weight:800;font-size:1.02rem;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:11px;font-family:inherit;letter-spacing:-.01em}
   .tab svg{width:20px;height:20px;stroke:currentColor}
   .tab .cnt{font-size:.78rem;background:var(--pink);color:var(--vio);padding:3px 12px;border-radius:20px;font-weight:800}
   .tab.on{background:linear-gradient(120deg,var(--vio),var(--vio2));color:#fff;box-shadow:0 12px 26px rgba(62,42,155,.32)}
@@ -133,13 +151,18 @@
   .search input{border:0;outline:0;flex:1;font-size:.94rem;color:var(--dark);background:transparent;font-family:inherit}
   .search svg{width:17px;height:17px;stroke:var(--ink)}
   .filtros{display:flex;gap:7px;flex-wrap:wrap}
-  .chip{border:0;background:#fff;box-shadow:var(--sh);color:var(--ink);padding:10px 16px;border-radius:24px;font-size:.8rem;font-weight:700;cursor:pointer;transition:.2s;text-transform:capitalize;font-family:inherit}
+  .chip{border:0;background:#fff;box-shadow:var(--sh);color:var(--ink);padding:10px 16px;border-radius:24px;font-size:.8rem;font-weight:700;cursor:pointer;text-transform:capitalize;font-family:inherit}
   .chip.on{background:var(--dark);color:#fff}
-  .btn{border:0;background:linear-gradient(120deg,var(--vio),var(--vio2));color:#fff;padding:13px 19px;border-radius:14px;font-weight:700;font-size:.88rem;cursor:pointer;display:inline-flex;gap:9px;align-items:center;transition:.2s;font-family:inherit;box-shadow:0 8px 18px rgba(62,42,155,.28)}
+  .btn{border:0;background:linear-gradient(120deg,var(--vio),var(--vio2));color:#fff;padding:13px 19px;border-radius:14px;font-weight:700;font-size:.88rem;cursor:pointer;display:inline-flex;gap:9px;align-items:center;font-family:inherit;box-shadow:0 8px 18px rgba(62,42,155,.28)}
   .btn:hover{transform:translateY(-1px)}
   .btn svg{width:15px;height:15px;stroke:#fff}.btn.spin svg{animation:sp .8s linear infinite}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px}
-  .lead{background:#fff;border-radius:20px;padding:20px;box-shadow:var(--sh);animation:rise .4s cubic-bezier(.2,.8,.2,1) both;border-left:6px solid var(--created);transition:.22s}
+  .lead{background:#fff;border-radius:20px;padding:20px;box-shadow:var(--sh);border-left:6px solid var(--created);
+    transition:transform var(--t-fast) var(--e),box-shadow var(--t) var(--e),opacity var(--t) var(--e)}
+  /* La entrada NO va en .lead: si no, todas las tarjetas vuelven a animarse en cada
+     tecla del buscador, en cada filtro y en cada refresco automático. Solo entra lo
+     que es nuevo, y escalonado. */
+  .lead.entra{animation:rise .42s var(--e) both;animation-delay:calc(var(--i,0) * 26ms)}
   .lead:hover{transform:translateY(-3px);box-shadow:0 18px 38px rgba(38,22,110,.13)}
   .lead[data-e=contacted]{border-left-color:var(--contacted)}.lead[data-e=qualified]{border-left-color:var(--qualified)}
   .lead[data-e=converted]{border-left-color:var(--converted)}.lead[data-e=disqualified]{border-left-color:var(--disqualified);opacity:.7}
@@ -171,7 +194,7 @@
   .wacts:has(> :only-child){grid-template-columns:1fr}
   select.est{appearance:none;border:0;border-radius:12px;padding:10px 34px 10px 16px;font-weight:800;font-size:.9rem;cursor:pointer;color:#fff;text-transform:capitalize;font-family:inherit;background-repeat:no-repeat;background-position:right 11px center;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white'><path d='M2 4l4 4 4-4z'/></svg>");box-shadow:0 5px 14px rgba(0,0,0,.15)}
   .est[data-e=created]{background-color:var(--created)}.est[data-e=contacted]{background-color:var(--contacted)}.est[data-e=qualified]{background-color:var(--qualified)}.est[data-e=converted]{background-color:var(--converted)}.est[data-e=disqualified]{background-color:var(--disqualified)}
-  .save{font-size:.72rem;font-weight:700;color:var(--ink);opacity:0;transition:.3s}.save.show{opacity:1}.save.ok{color:var(--converted)}.save.err{color:var(--disqualified)}
+  .save{font-size:.72rem;font-weight:700;color:var(--ink);opacity:0;transition:var(--t) var(--e)}.save.show{opacity:1}.save.ok{color:var(--converted)}.save.err{color:var(--disqualified)}
   .capi{font-size:.7rem;color:#9a97b5;margin-top:10px;display:flex;align-items:center;gap:6px;font-weight:600}.capi svg{width:13px;height:13px;stroke:var(--converted)}
   .state{text-align:center;padding:48px 20px;color:var(--ink);font-size:.92rem}.state svg{width:42px;height:42px;stroke:var(--lila);margin:0 auto 12px}.state code{background:#fff;box-shadow:var(--sh);padding:2px 8px;border-radius:6px;font-size:.82rem}
   .spin2{width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--vio);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 14px}
@@ -217,7 +240,7 @@
   .lgin{display:flex;align-items:center;gap:10px;background:var(--pink);border-radius:14px;padding:13px 16px;margin-bottom:12px}
   .lgin svg{width:17px;height:17px;stroke:var(--vio);flex:none}
   .lgin input{border:0;outline:0;background:transparent;flex:1;font-size:1rem;font-family:inherit;color:var(--dark)}
-  .lgbtn{width:100%;border:0;background:linear-gradient(120deg,var(--vio),var(--vio2));color:#fff;padding:14px;border-radius:14px;font-weight:800;font-size:.95rem;cursor:pointer;font-family:inherit;box-shadow:0 10px 24px rgba(62,42,155,.35);transition:.2s}
+  .lgbtn{width:100%;border:0;background:linear-gradient(120deg,var(--vio),var(--vio2));color:#fff;padding:14px;border-radius:14px;font-weight:800;font-size:.95rem;cursor:pointer;font-family:inherit;box-shadow:0 10px 24px rgba(62,42,155,.35);transition:var(--t) var(--e)}
   .lgbtn:hover{transform:translateY(-1px)}
   .lgerr{font-size:.76rem;color:var(--disqualified);font-weight:700;margin-top:12px;min-height:1em}
   /* ---- calidad de lead ---- */
@@ -258,7 +281,7 @@
   #adsTable.hasresp .qresp{display:table-cell}
   /* campo para registrar cuánto se vendió, en la tarjeta del lead */
   .vta{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--line);border-radius:10px;
-    padding:5px 9px;background:#fff;transition:.15s}
+    padding:5px 9px;background:#fff;transition:var(--t-fast) var(--e)}
   .vta i{font-style:normal;font-weight:800;color:#8a82a8;font-size:.82rem}
   .vta input{width:66px;border:0;background:none;outline:none;font:inherit;font-size:.82rem;font-weight:800;color:var(--ink)}
   .vta input::-webkit-outer-spin-button,.vta input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
@@ -270,7 +293,7 @@
   .hoy{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0 4px}
   .hoyb{display:flex;align-items:center;gap:12px;border:0;cursor:pointer;font-family:inherit;
     background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 20px;
-    box-shadow:var(--sh2);transition:.16s;text-align:left}
+    box-shadow:var(--sh2);transition:var(--t-fast) var(--e);text-align:left}
   .hoyb:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(38,22,110,.14)}
   .hoyb b{font-size:2rem;font-weight:900;color:var(--vio);line-height:1}
   .hoyb span{font-size:.86rem;font-weight:700;color:var(--ink);max-width:190px;line-height:1.25}
@@ -299,7 +322,7 @@
   /* telefono = la accion principal: grande y tocable */
   .waline{display:inline-flex;align-items:center;gap:8px;margin-top:11px;padding:9px 14px;border-radius:12px;
     background:#f3f7ff;border:1px solid #d8e4fb;color:#1f4fa8;font-weight:800;font-size:.92rem;
-    text-decoration:none;transition:.15s;max-width:100%}
+    text-decoration:none;transition:var(--t-fast) var(--e);max-width:100%}
   .waline:hover{background:#e7f0ff;border-color:#b9d0f6}
   .waline svg{width:15px;height:15px;stroke:#1f4fa8;fill:none;stroke-width:2.2;flex:none}
   /* contexto secundario: se lee si lo buscas, no compite */
@@ -308,7 +331,7 @@
   /* Registrar venta — claro para el vendedor: botón cuando no hay venta, pill verde cuando ya vendió */
   .vsell{position:relative;display:inline-flex;max-width:100%;min-width:0}
   .vsell-t{border:1px dashed #cfc7ea;background:#faf8ff;color:#6f66a0;font-weight:700;font-size:.8rem;
-    padding:9px 14px;border-radius:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:.15s;
+    padding:9px 14px;border-radius:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:var(--t-fast) var(--e);
     max-width:100%;overflow:hidden;text-overflow:ellipsis}
   .vsell-t:hover{border-color:var(--vio2);color:var(--vio);background:#f3efff}
   .vsell.has .vsell-t{border:1px solid #9be0bb;border-style:solid;background:#f2fbf6;color:#137a45}
@@ -335,9 +358,43 @@
   .sellhint svg{width:18px;height:18px;stroke:var(--vio2);fill:none;stroke-width:2;flex:none;margin-top:1px}
   .sellhint b{color:var(--dark)}
   .lgfoot{font-size:.62rem;color:#9a94bd;margin-top:18px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
-  .iconbtn{border:0;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;width:38px;height:38px;border-radius:12px;cursor:pointer;display:grid;place-items:center;transition:.2s}
+  .iconbtn{border:0;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;width:38px;height:38px;border-radius:12px;cursor:pointer;display:grid;place-items:center;transition:var(--t) var(--e)}
   .iconbtn:hover{background:rgba(255,255,255,.22)}
   .iconbtn svg{width:16px;height:16px;stroke:#fff}
+
+  .vermas{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:22px;flex-wrap:wrap}
+  .vermas span{font-size:.76rem;font-weight:700;color:var(--ink)}
+
+  /* ================= TIPOGRAFÍA =================
+     El tracking depende del tamaño: el texto chico se apelmaza si no se abre un poco.
+     Y las cifras van tabulares para que no bailen al actualizarse. */
+  .lead .meta,.tag,.save,.capi,.kt span,.kpi2 span,.vermas span{letter-spacing:.012em}
+  .kpi b,.kpi2 b,.num,.fstep b,td.r{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+  /* ================= ACCESIBILIDAD =================
+     Movimiento reducido no es "sin respuesta": es la misma información sin
+     desplazamientos que mareen. */
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+      transition-duration:.01ms !important}
+    .lead.entra{animation:aparecer .2s linear both !important;animation-delay:0 !important}
+    .lead:hover,.camp:hover,.kpi:hover,.btn:hover,.lgbtn:hover{transform:none}
+    .tab:active,.chip:active,.btn:active,.lead:active,.preset:active,
+    .seebtn:active,.iconbtn:active,.lgbtn:active{transform:none;filter:brightness(.94)}
+    .dot{animation:none}
+  }
+  @keyframes aparecer{from{opacity:0}to{opacity:1}}
+
+  @media (prefers-reduced-transparency:reduce){
+    .kpi{background:rgba(255,255,255,.22);backdrop-filter:none}
+    #pv,#login{backdrop-filter:none;background:rgba(22,15,56,.9)}
+  }
+  @media (prefers-contrast:more){
+    :root{--ink:#4a4470;--line:rgba(62,42,155,.28)}
+    .tab,.chip,.lead,.camp,.fstep,.tcard{border:1px solid var(--line)}
+    .lead .meta,.tag,.sub,.capi{color:#3d3963}
+  }
 </style>
 </head>
 <body>
@@ -445,12 +502,12 @@
     .watoggle{background:#fff;border:1px solid #eceaf5;border-radius:14px;padding:14px 16px;box-shadow:0 6px 16px rgba(62,42,155,.06);display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer}
     .watoggle b{display:block;color:var(--vio);font-size:.9rem}.watoggle span{color:#8b86a8;font-size:.76rem;font-weight:600}
     .watoggle input{display:none}
-    .tsw{flex:none;width:46px;height:26px;border-radius:99px;background:#d5d2e4;position:relative;transition:.2s}
-    .tsw:after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 2px 5px rgba(0,0,0,.2)}
+    .tsw{flex:none;width:46px;height:26px;border-radius:99px;background:#d5d2e4;position:relative;transition:var(--t) var(--e)}
+    .tsw:after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:var(--t) var(--e);box-shadow:0 2px 5px rgba(0,0,0,.2)}
     .watoggle input:checked+.tsw{background:var(--converted)}
     .watoggle input:checked+.tsw:after{transform:translateX(20px)}
     /* margin-left:auto lo manda a la derecha si cabe, y lo deja envolver si no */
-    .wabtn{border:0;background:var(--converted);color:#fff;padding:10px 12px;border-radius:11px;font-size:.78rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:.2s;white-space:nowrap}
+    .wabtn{border:0;background:var(--converted);color:#fff;padding:10px 12px;border-radius:11px;font-size:.78rem;font-weight:800;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:var(--t) var(--e);white-space:nowrap}
     .wabtn.ghost{background:#eef6ff;color:#1f4fa8;border:1px solid #cfe0fa}
     .wabtn.ghost svg{stroke:#1f4fa8}
     .wabtn.ghost:hover{background:#e2eeff}
@@ -468,6 +525,7 @@
     </div>
     <div class="sellhint"><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><div><b>¿El lead compró?</b> Toca <b>+ Registrar venta</b> en su tarjeta y escribe cuánto y qué compró. Con eso sabemos qué anuncio trae plata de verdad, no solo formularios.</div></div>
     <div id="content"><div class="state"><div class="spin2"></div>Cargando leads…</div></div>
+    <div id="vermas"></div>
   </section>
 </div>
 <footer>Modumon · gestionado por ECUS Agency</footer>
@@ -505,7 +563,8 @@
                   todos:'Todos',respondieron:'Respondieron'};
   const eti=s=>ETIQUETA[s]||s;
   const PRESETS=[['today','Hoy'],['yesterday','Ayer'],['last_7d','7 días'],['last_30d','30 días'],['maximum','Todo']];
-  let tipo='b2c', filtro='todos', preset='maximum', cache={b2c:[],b2b:[]}, charts={};
+  const PASO=24;   // cuántas tarjetas se pintan de una; el resto entra con "Ver más"
+  let tipo='b2c', filtro='todos', preset='maximum', verMax=PASO, cache={b2c:[],b2b:[]}, charts={};
   const pendingStatus={};   // id -> estado recién marcado, protegido hasta que el server lo confirme
   const S=p=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'+p+'</svg>';
   const IC={
@@ -868,8 +927,9 @@
 
   /* ============ LEADS (via proxy /api/leads) ============ */
   function deriveTipo(l){ const s=((l.campana||'')+' '+(l.anuncio||'')).toUpperCase(); if(s.indexOf('B2C')>=0) return 'b2c'; if(s.indexOf('B2B')>=0) return 'b2b'; return l.tipo||'b2c'; }
-  function switchTab(t){ tipo=t; document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tipo===t)); render(); }
-  function setFiltro(e){ filtro=e; render(); }
+  function switchTab(t){ tipo=t; verMax=PASO; document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tipo===t)); render(); }
+  function setFiltro(e){ filtro=e; verMax=PASO; render(); }
+  function verMasLeads(){ verMax+=PASO; render(); }
 
   /* Prepara las filas crudas: tipo, teléfono limpio, y respeta un estado que
      acabas de marcar y el server todavía no confirma. */
@@ -964,9 +1024,28 @@
     const urgencia=l=>abierto(l)?0:1;
     rows.sort((a,b)=>urgencia(a)-urgencia(b) || String(b.fecha||'').localeCompare(String(a.fecha||'')));
 
-    const c=document.getElementById('content');
-    if(!rows.length){ c.innerHTML='<div class="state">'+IC.inbox+'Sin leads'+(filtro!=='todos'?' en "'+filtro+'"':'')+' en esta pestaña todavía.</div>'; return; }
-    c.innerHTML='<div class="grid">'+rows.map(card).join('')+'</div>';
+    const c=document.getElementById('content'), vm=document.getElementById('vermas');
+    if(!rows.length){
+      c.innerHTML='<div class="state">'+IC.inbox+(q?'Ningún lead coincide con esa búsqueda.':'Sin leads'+(filtro!=='todos'?' en «'+eti(filtro)+'»':'')+' todavía.')+'</div>';
+      if(vm) vm.innerHTML=''; return;
+    }
+    /* Qué se anima al entrar. Solo lo que de verdad es nuevo en pantalla:
+         cambiaste de pestaña o de filtro → entra la tanda, escalonada
+         tocaste "Ver más"                → entran solo las que se sumaron
+         escribiste en el buscador, o entró el refresco de fondo → no entra nada */
+    const firma=tipo+'|'+filtro;
+    const desde=(firma!==window.__firma)?0:(window.__pintadas!=null?window.__pintadas:0);
+    window.__firma=firma;
+    /* Antes se pintaban TODAS las tarjetas de una (son cientos). Ahora entran de a
+       tandas: el navegador no tiene que armar 460 fichas para mostrar las 24 de arriba. */
+    const visibles=rows.slice(0,verMax);
+    window.__pintadas=visibles.length;
+    c.innerHTML='<div class="grid">'+visibles.map((l,i)=>card(l,i,desde)).join('')+'</div>';
+    const faltan=rows.length-visibles.length;
+    if(vm) vm.innerHTML=faltan>0
+      ? '<div class="vermas"><button class="btn" onclick="verMasLeads()">Ver '+Math.min(PASO,faltan)+' más</button>'
+        +'<span>Mostrando '+visibles.length+' de '+rows.length+'</span></div>'
+      : (rows.length>PASO?'<div class="vermas"><span>'+rows.length+' leads en esta vista</span></div>':'');
   }
 
   /* La hoja devuelve la fecha como Date crudo de JavaScript
@@ -1044,7 +1123,9 @@
     return 'No salió el saludo automático. Escríbele a mano.';
   }
 
-  function card(l){
+  function card(l,i,desde){
+    const nueva=(i!=null&&desde!=null&&i>=desde);
+    const orden=nueva?Math.min(i-desde,10):0;   // el escalonado se corta a 10: más allá se siente lento
     const e=l.status||'created';
     const falla=fallaSaludo(l);
     const nombre=((l.nombre||'')+' '+(l.apellido||'')).trim()||'(sin nombre)';
@@ -1055,7 +1136,7 @@
        quién es · si contestó y qué dijo · cómo escribirle. Lo demás (correo,
        fecha, nombre del anuncio) baja a una línea gris: sirve de contexto,
        no compite por atención. */
-    return '<div class="lead" data-e="'+esc(e)+'">'
+    return '<div class="lead'+(nueva?' entra':'')+'" style="--i:'+orden+'" data-e="'+esc(e)+'">'
       +'<div class="lhead"><div class="av">'+esc(ini)+'</div><div style="min-width:0"><h3>'+esc(nombre)+'</h3>'
         +'<div class="meta">'+esc(fechaCorta(l.fecha))+(l.extra?' · '+esc(l.extra):'')+'</div></div></div>'
       +(l.respondio?('<div class="respw" onclick="convOpen(\''+esc(l.id)+'\')" title="Ver la conversación completa">'
